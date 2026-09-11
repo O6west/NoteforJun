@@ -1,0 +1,3155 @@
+# NoteforJun Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** 윈도우 스티키 노트를 베이스로 제목·큰 글씨·체크박스·굵게/기울임/밑줄·형광펜만 더하고, 설계 문서 `docs/superpowers/specs/2026-09-11-noteforjun-design.md`의 완성 기준 20개를 전부 통과하는 데스크톱 메모 앱을 만든다.
+
+**Architecture:** Tauri 2 앱. Rust는 파일 저장·창 관리·시스템 연동 네 가지만 맡고, 화면은 순수 HTML/CSS/JS로 그린다. 메모 하나가 창 하나이며 모든 메모 창은 같은 `note.html`을 쿼리 파라미터 `?id=`로 구분해서 연다. 목록 창은 `list.html` 하나뿐이다. 저장은 메모당 JSON 파일 하나이며 임시 파일에 쓴 뒤 이름을 바꾸는 방식으로 원자성을 확보한다. 글 편집은 Tiptap(ProseMirror)에 맡겨 한글 IME 처리를 직접 하지 않는다.
+
+**Tech Stack:** Tauri 2 · Rust (serde, serde_json, uuid) · Vite 6 · Tiptap 2 · Vitest + jsdom · Pretendard
+
+## Global Constraints
+
+설계 문서의 확정값이다. 모든 태스크의 요구사항에 암묵적으로 포함된다.
+
+- 앱 이름: `NoteforJun` / 번들 식별자: `com.noteforjun.app`
+- 대상 플랫폼: 윈도우 11 (x86_64-pc-windows-msvc)
+- 저장 위치: `%APPDATA%\NoteforJun\notes\<uuid>.json` — 번들 식별자 경로가 아니라 이 경로를 직접 구성한다
+- 본문 배경 `#FBF8F2` 고정 / 본문 글자색 `#2E2E2C` / 형광펜 `#F7E27F` 단색
+- 상단바 색은 정확히 6종이며 이 값 외에 추가하지 않는다:
+  | key | 배경 | 글자색 |
+  |---|---|---|
+  | `yellow` | `#E0B84D` | `#3D2F10` |
+  | `green` | `#7FA86B` | `#FFFFFF` |
+  | `purple` | `#A98BC4` | `#FFFFFF` |
+  | `blue` | `#6FA3BF` | `#FFFFFF` |
+  | `orange` | `#D98C6A` | `#FFFFFF` |
+  | `gray` | `#9A9A94` | `#FFFFFF` |
+- 새 메모 기본색은 항상 `yellow`
+- 폰트는 Pretendard 하나. 본문 14px/400, 큰 글씨 19px/700, 상단바 제목 13px/600, 목록 카드 제목 13px/600, 목록 미리보기 12px/400. 본문 줄간격 1.72
+- 제목 최대 20자 (입력 자체를 막는다)
+- 메모 창 기본 300×300 / 최소 220×160
+- 목록 창 기본 360×520 / **최소 폭 360px** (20자 제목이 잘리지 않는다는 보증)
+- 자동 저장 디바운스 500ms
+- 전역 단축키 `Ctrl+Alt+N`
+- 헤딩은 1단계만 (`##`, `###` 동작 안 함)
+- 서식은 큰 글씨·체크박스·굵게·기울임·밑줄·형광펜 여섯 가지뿐. 취소선은 체크박스가 자동 적용하므로 별도 제공하지 않는다
+- 설정 화면을 만들지 않는다. 사용자가 조절 가능한 것은 색 6종과 창 크기·위치뿐이다
+- Tiptap은 **v2 계열**로 고정한다 (`^2.11.0`)
+
+## 테스트 전략
+
+자동화할 수 있는 것과 없는 것을 미리 갈라둔다.
+
+| 영역 | 방법 |
+|---|---|
+| 저장 계층, HTML 텍스트 추출, 창 위치 계산 | `cargo test` — 순수 함수로 분리해 전부 자동화 |
+| 제목 자르기, 미리보기, 검색 필터, 디바운스 | `vitest` — 순수 함수 |
+| 입력 규칙(`# `, `- `), 서식 명령, 체크박스 Enter | `vitest` + jsdom + ProseMirror 트랜잭션 직접 주입 |
+| **한글 IME 조합 중 동작** | **수동 확인.** jsdom은 `compositionstart`/`compositionupdate`를 실제 IME처럼 재현하지 못한다. 억지로 흉내 내면 통과해도 의미가 없으므로 Task 10의 수동 체크리스트로 검증한다 |
+| 창 복원, 자동 실행, 전역 단축키, 메모리 사용량 | 수동 확인 (Task 10) |
+
+---
+
+## File Structure
+
+```
+노트앱-개발/
+├─ package.json                      npm 스크립트와 의존성
+├─ vite.config.js                    2페이지(note/list) 빌드 설정
+├─ vitest.config.js                  jsdom 테스트 설정
+├─ test/setup.js                     ProseMirror용 jsdom 보정
+├─ src/
+│  ├─ note.html                      메모 창 뼈대
+│  ├─ list.html                      목록 창 뼈대
+│  ├─ note.js                        메모 창 진입점 (조립만)
+│  ├─ list.js                        목록 창 진입점 (조립만)
+│  ├─ styles/
+│  │  ├─ tokens.css                  확정값 전부 (색/폰트/크기)
+│  │  ├─ note.css                    메모 창 레이아웃
+│  │  └─ list.css                    목록 창 레이아웃
+│  ├─ lib/
+│  │  ├─ api.js                      Rust 명령 래퍼 (유일한 통로)
+│  │  ├─ colors.js                   6색 정의
+│  │  ├─ title.js                    제목 20자 제한
+│  │  ├─ preview.js                  본문 텍스트 → 첫 줄 / 2줄 미리보기
+│  │  ├─ search.js                   목록 검색 필터
+│  │  └─ debounce.js                 자동 저장용
+│  └─ editor/
+│     ├─ rules.js                    입력 규칙 정규식 (테스트 대상)
+│     ├─ extensions.js               Tiptap 확장 조립
+│     ├─ editor.js                   에디터 생성
+│     └─ bubble.js                   드래그 팝업 B I U ✏
+└─ src-tauri/
+   ├─ Cargo.toml
+   ├─ build.rs
+   ├─ tauri.conf.json
+   ├─ icons/                         PowerShell로 생성
+   └─ src/
+      ├─ main.rs                     진입점
+      ├─ lib.rs                      앱 조립, 플러그인 등록
+      ├─ note.rs                     Note / NoteSummary 구조체
+      ├─ html.rs                     HTML → 순수 텍스트
+      ├─ storage.rs                  파일 읽기/쓰기/삭제/목록
+      ├─ windows.rs                  창 생성·숨김·복원, 위치 계산
+      └─ commands.rs                 Tauri 명령 (얇은 위임)
+```
+
+**경계 원칙:** `storage.rs`는 창을 모르고, `windows.rs`는 파일 형식을 모르고, `commands.rs`는 둘을 이어붙이기만 한다. `storage.rs`와 `html.rs`, `windows.rs`의 위치 계산은 Tauri에 의존하지 않는 순수 함수라 단위 테스트가 가능하다.
+
+---
+
+### Task 1: 프로젝트 뼈대와 첫 실행
+
+**Files:**
+- Create: `package.json`, `vite.config.js`, `.gitignore`(수정)
+- Create: `src/note.html`, `src/list.html`
+- Create: `src-tauri/Cargo.toml`, `src-tauri/build.rs`, `src-tauri/tauri.conf.json`
+- Create: `src-tauri/src/main.rs`, `src-tauri/src/lib.rs`
+- Create: `src-tauri/icons/` (스크립트로 생성)
+
+**Interfaces:**
+- Consumes: 없음
+- Produces: `npm run tauri dev`로 실행되는 빈 Tauri 앱. 이후 모든 태스크가 이 위에서 돌아간다.
+
+- [ ] **Step 1: `.gitignore`에 빌드 산출물 추가**
+
+기존 `.gitignore`에 아래를 덧붙인다:
+
+```
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+```
+
+- [ ] **Step 2: `package.json` 작성**
+
+```json
+{
+  "name": "noteforjun",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tiptap/core": "^2.11.0",
+    "@tiptap/extension-bold": "^2.11.0",
+    "@tiptap/extension-document": "^2.11.0",
+    "@tiptap/extension-heading": "^2.11.0",
+    "@tiptap/extension-highlight": "^2.11.0",
+    "@tiptap/extension-history": "^2.11.0",
+    "@tiptap/extension-italic": "^2.11.0",
+    "@tiptap/extension-paragraph": "^2.11.0",
+    "@tiptap/extension-placeholder": "^2.11.0",
+    "@tiptap/extension-task-item": "^2.11.0",
+    "@tiptap/extension-task-list": "^2.11.0",
+    "@tiptap/extension-text": "^2.11.0",
+    "@tiptap/extension-underline": "^2.11.0",
+    "pretendard": "^1.3.9"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "jsdom": "^25.0.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  }
+}
+```
+
+- [ ] **Step 3: `vite.config.js` 작성**
+
+```js
+import { defineConfig } from 'vite'
+import { resolve } from 'node:path'
+
+export default defineConfig({
+  root: 'src',
+  publicDir: false,
+  clearScreen: false,
+  server: { port: 1420, strictPort: true },
+  build: {
+    outDir: '../dist',
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        note: resolve(import.meta.dirname, 'src/note.html'),
+        list: resolve(import.meta.dirname, 'src/list.html'),
+      },
+    },
+  },
+})
+```
+
+- [ ] **Step 4: 최소 HTML 두 개 작성**
+
+`src/note.html`:
+
+```html
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>NoteforJun</title>
+  </head>
+  <body>
+    <div id="app">note</div>
+  </body>
+</html>
+```
+
+`src/list.html`:
+
+```html
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>모든 메모</title>
+  </head>
+  <body>
+    <div id="app">list</div>
+  </body>
+</html>
+```
+
+- [ ] **Step 5: 의존성 설치**
+
+Run: `npm install`
+Expected: `node_modules/` 생성, 오류 없음. `@tiptap/core`가 2.x로 설치되었는지 `npm ls @tiptap/core`로 확인한다.
+
+- [ ] **Step 6: Rust 쪽 파일 작성**
+
+`src-tauri/Cargo.toml`:
+
+```toml
+[package]
+name = "noteforjun"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "noteforjun_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+```
+
+`src-tauri/build.rs`:
+
+```rust
+fn main() {
+    tauri_build::build()
+}
+```
+
+`src-tauri/src/main.rs`:
+
+```rust
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+fn main() {
+    noteforjun_lib::run()
+}
+```
+
+`src-tauri/src/lib.rs`:
+
+```rust
+pub fn run() {
+    tauri::Builder::default()
+        .run(tauri::generate_context!())
+        .expect("error while running NoteforJun");
+}
+```
+
+`src-tauri/tauri.conf.json` — 이 단계에서는 눈으로 확인할 창이 하나 필요하므로 `note.html`을 띄운다. Task 3에서 프로그램이 직접 창을 만들도록 바꾼다.
+
+```json
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "NoteforJun",
+  "version": "0.1.0",
+  "identifier": "com.noteforjun.app",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "bootstrap",
+        "url": "note.html",
+        "title": "NoteforJun",
+        "width": 300,
+        "height": 300
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
+```
+
+- [ ] **Step 7: 앱 아이콘 생성**
+
+외부 이미지 파일에 의존하지 않도록 확정된 색으로 직접 그린다. PowerShell에서 실행한다:
+
+```powershell
+Add-Type -AssemblyName System.Drawing
+$size = 1024
+$bmp = New-Object System.Drawing.Bitmap $size, $size
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+$g.SmoothingMode = 'AntiAlias'
+$g.Clear([System.Drawing.Color]::Transparent)
+
+$pad = 96
+$w = $size - ($pad * 2)
+$paper = New-Object System.Drawing.SolidBrush ([System.Drawing.ColorTranslator]::FromHtml('#FBF8F2'))
+$bar   = New-Object System.Drawing.SolidBrush ([System.Drawing.ColorTranslator]::FromHtml('#E0B84D'))
+$ink   = New-Object System.Drawing.SolidBrush ([System.Drawing.ColorTranslator]::FromHtml('#D9D5CC'))
+
+$g.FillRectangle($paper, $pad, $pad, $w, $w)
+$g.FillRectangle($bar, $pad, $pad, $w, 168)
+
+$lineX = $pad + 88
+$lineW = $w - 176
+foreach ($i in 0..2) {
+  $y = $pad + 300 + ($i * 128)
+  $len = if ($i -eq 2) { [int]($lineW * 0.55) } else { $lineW }
+  $g.FillRectangle($ink, $lineX, $y, $len, 44)
+}
+
+$g.Dispose()
+New-Item -ItemType Directory -Force -Path 'src-tauri' | Out-Null
+$bmp.Save((Join-Path (Get-Location) 'src-tauri\app-icon.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+$bmp.Dispose()
+'icon written'
+```
+
+Expected: `icon written` 출력, `src-tauri/app-icon.png` 생성.
+
+- [ ] **Step 8: 아이콘 세트로 변환**
+
+Run: `npx tauri icon src-tauri/app-icon.png`
+Expected: `src-tauri/icons/` 아래에 `32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.ico`, `icon.icns` 등이 생성된다.
+
+- [ ] **Step 9: 실행 확인**
+
+Run: `npm run tauri dev`
+Expected: 첫 빌드는 몇 분 걸린다. 300×300 창이 뜨고 안에 `note`라는 글자가 보이면 성공이다. 확인 후 `Ctrl+C`로 종료한다.
+
+실패 시 점검 순서: `link.exe not found` → Visual Studio Build Tools 문제 / 빈 흰 창 → WebView2 문제 / `devUrl` 연결 실패 → Vite가 1420 포트에 떴는지 확인.
+
+- [ ] **Step 10: 커밋**
+
+```bash
+git add -A
+git commit -m "chore: Tauri 2 + Vite 프로젝트 뼈대 구성"
+```
+
+---
+
+### Task 2: 저장 계층 — 구조체와 원자적 파일 저장
+
+**Files:**
+- Create: `src-tauri/src/note.rs`
+- Create: `src-tauri/src/html.rs`
+- Create: `src-tauri/src/storage.rs`
+- Modify: `src-tauri/src/lib.rs` (모듈 선언 추가)
+
+**Interfaces:**
+- Consumes: 없음
+- Produces:
+  - `note::Note { id: String, title: String, content: String, color: String, window: WindowState, created_at: String, updated_at: String }` (JSON은 camelCase)
+  - `note::WindowState { x: i32, y: i32, width: u32, height: u32, visible: bool }`
+  - `note::NoteSummary { id, title, text, color, updated_at }`
+  - `html::strip_html(&str) -> String`
+  - `storage::notes_dir(&Path) -> PathBuf`
+  - `storage::save(&Path, &Note) -> io::Result<()>`
+  - `storage::load(&Path, &str) -> io::Result<Note>`
+  - `storage::list(&Path) -> io::Result<Vec<NoteSummary>>`
+  - `storage::delete(&Path, &str) -> io::Result<()>`
+
+- [ ] **Step 1: 모듈 선언을 `lib.rs`에 추가**
+
+`src-tauri/src/lib.rs` 맨 위에 추가한다:
+
+```rust
+pub mod html;
+pub mod note;
+pub mod storage;
+```
+
+- [ ] **Step 2: `html.rs`의 실패하는 테스트 작성**
+
+`src-tauri/src/html.rs`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strips_tags_and_keeps_text() {
+        assert_eq!(strip_html("<p>안녕</p>"), "안녕");
+    }
+
+    #[test]
+    fn block_tags_become_newlines() {
+        assert_eq!(strip_html("<p>첫줄</p><p>둘째줄</p>"), "첫줄\n둘째줄");
+    }
+
+    #[test]
+    fn br_becomes_newline() {
+        assert_eq!(strip_html("<p>가<br>나</p>"), "가\n나");
+    }
+
+    #[test]
+    fn inline_tags_do_not_break_lines() {
+        assert_eq!(strip_html("<p>아주 <strong>중요</strong>함</p>"), "아주 중요함");
+    }
+
+    #[test]
+    fn decodes_entities() {
+        assert_eq!(strip_html("<p>a &amp; b &lt;c&gt; &nbsp;d &quot;e&quot; &#39;f&#39;</p>"), "a & b <c>  d \"e\" 'f'");
+    }
+
+    #[test]
+    fn empty_html_is_empty_string() {
+        assert_eq!(strip_html(""), "");
+        assert_eq!(strip_html("<p></p>"), "");
+    }
+}
+```
+
+- [ ] **Step 3: 테스트 실패 확인**
+
+Run: `cd src-tauri && cargo test html::`
+Expected: FAIL — `cannot find function strip_html in this scope`
+
+- [ ] **Step 4: `strip_html` 구현**
+
+`src-tauri/src/html.rs`의 테스트 모듈 **위쪽**에 넣는다:
+
+```rust
+/// HTML 문자열에서 태그를 제거하고 순수 텍스트만 남긴다.
+/// 블록 태그는 줄바꿈으로 바꾼다. 목록 창의 미리보기와 검색에 쓰인다.
+pub fn strip_html(html: &str) -> String {
+    const BLOCK_TAGS: [&str; 6] = ["p", "div", "li", "h1", "br", "ul"];
+
+    let mut out = String::new();
+    let mut tag = String::new();
+    let mut in_tag = false;
+
+    for ch in html.chars() {
+        match ch {
+            '<' => {
+                in_tag = true;
+                tag.clear();
+            }
+            '>' if in_tag => {
+                in_tag = false;
+                let name = tag
+                    .trim_start_matches('/')
+                    .split(|c: char| c.is_whitespace() || c == '/')
+                    .next()
+                    .unwrap_or("")
+                    .to_ascii_lowercase();
+                if BLOCK_TAGS.contains(&name.as_str()) && !out.is_empty() && !out.ends_with('\n') {
+                    out.push('\n');
+                }
+            }
+            _ if in_tag => tag.push(ch),
+            _ => out.push(ch),
+        }
+    }
+
+    decode_entities(out.trim())
+}
+
+fn decode_entities(s: &str) -> String {
+    s.replace("&nbsp;", " ")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
+}
+```
+
+`&amp;`를 마지막에 처리하는 것이 중요하다. 먼저 바꾸면 `&amp;lt;`가 `<`로 잘못 풀린다.
+
+- [ ] **Step 5: 테스트 통과 확인**
+
+Run: `cd src-tauri && cargo test html::`
+Expected: PASS — 6개 테스트 전부 통과
+
+- [ ] **Step 6: `note.rs` 작성**
+
+테스트가 필요한 로직이 `NoteSummary::from` 하나뿐이므로 구조체와 함께 쓰고 바로 테스트한다.
+
+`src-tauri/src/note.rs`:
+
+```rust
+use serde::{Deserialize, Serialize};
+
+use crate::html::strip_html;
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct WindowState {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub visible: bool,
+}
+
+impl Default for WindowState {
+    fn default() -> Self {
+        Self { x: 48, y: 48, width: 300, height: 300, visible: true }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Note {
+    pub id: String,
+    pub title: String,
+    pub content: String,
+    pub color: String,
+    pub window: WindowState,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// 목록 창에 보낼 요약. `text`는 검색과 미리보기 양쪽에 쓰이므로 본문 전체의 순수 텍스트다.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteSummary {
+    pub id: String,
+    pub title: String,
+    pub text: String,
+    pub color: String,
+    pub updated_at: String,
+}
+
+impl From<&Note> for NoteSummary {
+    fn from(n: &Note) -> Self {
+        Self {
+            id: n.id.clone(),
+            title: n.title.clone(),
+            text: strip_html(&n.content),
+            color: n.color.clone(),
+            updated_at: n.updated_at.clone(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    pub fn sample(id: &str, updated_at: &str) -> Note {
+        Note {
+            id: id.to_string(),
+            title: "이번주 할일".to_string(),
+            content: "<p>장보기</p><p>운동</p>".to_string(),
+            color: "yellow".to_string(),
+            window: WindowState::default(),
+            created_at: "2026-09-11T10:00:00Z".to_string(),
+            updated_at: updated_at.to_string(),
+        }
+    }
+
+    #[test]
+    fn summary_strips_html_from_content() {
+        let s = NoteSummary::from(&sample("a", "2026-09-11T10:00:00Z"));
+        assert_eq!(s.text, "장보기\n운동");
+        assert_eq!(s.title, "이번주 할일");
+        assert_eq!(s.color, "yellow");
+    }
+
+    #[test]
+    fn window_default_matches_spec() {
+        let w = WindowState::default();
+        assert_eq!((w.width, w.height), (300, 300));
+        assert!(w.visible);
+    }
+}
+```
+
+- [ ] **Step 7: `note.rs` 테스트 통과 확인**
+
+Run: `cd src-tauri && cargo test note::`
+Expected: PASS — 2개 통과
+
+- [ ] **Step 8: 커밋**
+
+```bash
+git add src-tauri/src/html.rs src-tauri/src/note.rs src-tauri/src/lib.rs
+git commit -m "feat: 메모 구조체와 HTML 텍스트 추출"
+```
+
+- [ ] **Step 9: `storage.rs`의 실패하는 테스트 작성**
+
+`src-tauri/src/storage.rs`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::note::{Note, WindowState};
+    use std::env;
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = env::temp_dir().join(format!("nfj-test-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn note(id: &str, updated_at: &str) -> Note {
+        Note {
+            id: id.to_string(),
+            title: "제목".to_string(),
+            content: "<p>본문</p>".to_string(),
+            color: "yellow".to_string(),
+            window: WindowState::default(),
+            created_at: "2026-09-11T10:00:00Z".to_string(),
+            updated_at: updated_at.to_string(),
+        }
+    }
+
+    #[test]
+    fn save_then_load_roundtrip() {
+        let dir = temp_dir("roundtrip");
+        let n = note("aaa", "2026-09-11T10:00:00Z");
+        save(&dir, &n).unwrap();
+        assert_eq!(load(&dir, "aaa").unwrap(), n);
+    }
+
+    #[test]
+    fn save_leaves_no_tmp_file() {
+        let dir = temp_dir("notmp");
+        save(&dir, &note("aaa", "2026-09-11T10:00:00Z")).unwrap();
+        let names: Vec<String> = fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, vec!["aaa.json".to_string()]);
+    }
+
+    #[test]
+    fn save_overwrites_existing() {
+        let dir = temp_dir("overwrite");
+        save(&dir, &note("aaa", "2026-09-11T10:00:00Z")).unwrap();
+        let mut n2 = note("aaa", "2026-09-11T11:00:00Z");
+        n2.title = "바뀐 제목".to_string();
+        save(&dir, &n2).unwrap();
+        assert_eq!(load(&dir, "aaa").unwrap().title, "바뀐 제목");
+    }
+
+    #[test]
+    fn list_sorts_by_updated_at_desc() {
+        let dir = temp_dir("sort");
+        save(&dir, &note("old", "2026-09-01T10:00:00Z")).unwrap();
+        save(&dir, &note("new", "2026-09-11T10:00:00Z")).unwrap();
+        let ids: Vec<String> = list(&dir).unwrap().into_iter().map(|s| s.id).collect();
+        assert_eq!(ids, vec!["new".to_string(), "old".to_string()]);
+    }
+
+    #[test]
+    fn list_skips_corrupt_file_and_keeps_others() {
+        let dir = temp_dir("corrupt");
+        save(&dir, &note("good", "2026-09-11T10:00:00Z")).unwrap();
+        fs::write(dir.join("broken.json"), "{ 이건 JSON이 아니다").unwrap();
+        let ids: Vec<String> = list(&dir).unwrap().into_iter().map(|s| s.id).collect();
+        assert_eq!(ids, vec!["good".to_string()]);
+    }
+
+    #[test]
+    fn list_on_missing_dir_is_empty() {
+        let dir = temp_dir("missing").join("nope");
+        assert!(list(&dir).unwrap().is_empty());
+    }
+
+    #[test]
+    fn delete_removes_file_and_is_idempotent() {
+        let dir = temp_dir("delete");
+        save(&dir, &note("aaa", "2026-09-11T10:00:00Z")).unwrap();
+        delete(&dir, "aaa").unwrap();
+        assert!(load(&dir, "aaa").is_err());
+        delete(&dir, "aaa").unwrap();
+    }
+
+    #[test]
+    fn notes_dir_appends_notes_segment() {
+        assert_eq!(notes_dir(Path::new("C:/base")), PathBuf::from("C:/base/notes"));
+    }
+}
+```
+
+- [ ] **Step 10: 테스트 실패 확인**
+
+`src-tauri/src/lib.rs`에 이미 `pub mod storage;`가 있으므로 파일만 있으면 컴파일을 시도한다.
+
+Run: `cd src-tauri && cargo test storage::`
+Expected: FAIL — `cannot find function save in this scope` 등
+
+- [ ] **Step 11: `storage.rs` 구현**
+
+테스트 모듈 **위쪽**에 넣는다:
+
+```rust
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+
+use crate::note::{Note, NoteSummary};
+
+/// 앱 데이터 폴더 아래의 메모 폴더 경로.
+pub fn notes_dir(base: &Path) -> PathBuf {
+    base.join("notes")
+}
+
+/// 임시 파일에 먼저 쓰고 이름을 바꾼다. 쓰기 도중 전원이 끊겨도
+/// 반쯤 쓰인 파일이 남지 않는다.
+pub fn save(dir: &Path, note: &Note) -> io::Result<()> {
+    fs::create_dir_all(dir)?;
+    let json = serde_json::to_string_pretty(note).map_err(io::Error::other)?;
+    let tmp = dir.join(format!("{}.json.tmp", note.id));
+    let dest = dir.join(format!("{}.json", note.id));
+    fs::write(&tmp, json)?;
+    fs::rename(&tmp, &dest)
+}
+
+pub fn load(dir: &Path, id: &str) -> io::Result<Note> {
+    let raw = fs::read_to_string(dir.join(format!("{id}.json")))?;
+    serde_json::from_str(&raw).map_err(io::Error::other)
+}
+
+pub fn delete(dir: &Path, id: &str) -> io::Result<()> {
+    let path = dir.join(format!("{id}.json"));
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
+/// 최근 수정순으로 정렬한 요약 목록.
+/// 읽거나 파싱할 수 없는 파일은 건너뛴다 — 메모 하나가 깨져도 나머지는 열려야 한다.
+pub fn list(dir: &Path) -> io::Result<Vec<NoteSummary>> {
+    let mut out = Vec::new();
+    if !dir.exists() {
+        return Ok(out);
+    }
+    for entry in fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let Ok(raw) = fs::read_to_string(&path) else { continue };
+        let Ok(note) = serde_json::from_str::<Note>(&raw) else { continue };
+        out.push(NoteSummary::from(&note));
+    }
+    out.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    Ok(out)
+}
+```
+
+`.json.tmp`는 확장자가 `tmp`라 `list`가 자동으로 걸러낸다.
+
+- [ ] **Step 12: 테스트 통과 확인**
+
+Run: `cd src-tauri && cargo test`
+Expected: PASS — storage 8개 + html 6개 + note 2개, 총 16개 통과
+
+- [ ] **Step 13: 커밋**
+
+```bash
+git add src-tauri/src/storage.rs
+git commit -m "feat: 메모 파일 저장 계층 (원자적 쓰기, 손상 파일 격리)"
+```
+
+---
+
+### Task 3: 창 관리와 Tauri 명령
+
+**Files:**
+- Create: `src-tauri/src/windows.rs`
+- Create: `src-tauri/src/commands.rs`
+- Modify: `src-tauri/src/lib.rs`
+- Modify: `src-tauri/tauri.conf.json` (부트스트랩 창 제거)
+
+**Interfaces:**
+- Consumes: `storage::*`, `note::{Note, NoteSummary, WindowState}`
+- Produces:
+  - `windows::next_position(last: Option<(i32, i32)>, screen: (i32, i32), size: (u32, u32)) -> (i32, i32)`
+  - `windows::note_label(id: &str) -> String` → `"note-<id>"`
+  - `commands::AppPaths { notes: PathBuf }` (Tauri 상태)
+  - Tauri 명령 8개: `list_notes`, `load_note`, `save_note`, `create_note`, `delete_note`, `open_note_window`, `hide_note_window`, `open_list_window`
+
+- [ ] **Step 1: `lib.rs`에 모듈 선언 추가**
+
+```rust
+pub mod commands;
+pub mod html;
+pub mod note;
+pub mod storage;
+pub mod windows;
+```
+
+- [ ] **Step 2: 위치 계산의 실패하는 테스트 작성**
+
+`src-tauri/src/windows.rs`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SCREEN: (i32, i32) = (1920, 1080);
+    const SIZE: (u32, u32) = (300, 300);
+
+    #[test]
+    fn first_window_is_centered() {
+        assert_eq!(next_position(None, SCREEN, SIZE), (810, 390));
+    }
+
+    #[test]
+    fn next_window_cascades_down_right() {
+        assert_eq!(next_position(Some((100, 100)), SCREEN, SIZE), (124, 124));
+    }
+
+    #[test]
+    fn wraps_to_top_left_when_off_right_edge() {
+        assert_eq!(next_position(Some((1900, 100)), SCREEN, SIZE), (48, 48));
+    }
+
+    #[test]
+    fn wraps_to_top_left_when_off_bottom_edge() {
+        assert_eq!(next_position(Some((100, 1000)), SCREEN, SIZE), (48, 48));
+    }
+
+    #[test]
+    fn label_is_prefixed() {
+        assert_eq!(note_label("abc-123"), "note-abc-123");
+    }
+}
+```
+
+- [ ] **Step 3: 테스트 실패 확인**
+
+Run: `cd src-tauri && cargo test windows::`
+Expected: FAIL — `cannot find function next_position in this scope`
+
+- [ ] **Step 4: 순수 함수 구현**
+
+`src-tauri/src/windows.rs`의 테스트 모듈 위쪽:
+
+```rust
+use std::path::PathBuf;
+
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+
+use crate::note::Note;
+use crate::storage;
+
+const CASCADE_STEP: i32 = 24;
+const CASCADE_ORIGIN: i32 = 48;
+
+/// 새 메모 창이 뜰 위치. 마지막 창에서 오른쪽 아래로 비껴 놓되,
+/// 화면 밖으로 나갈 위치가 되면 좌상단으로 되돌린다.
+pub fn next_position(last: Option<(i32, i32)>, screen: (i32, i32), size: (u32, u32)) -> (i32, i32) {
+    let (w, h) = (size.0 as i32, size.1 as i32);
+    match last {
+        None => ((screen.0 - w) / 2, (screen.1 - h) / 2),
+        Some((x, y)) => {
+            let (nx, ny) = (x + CASCADE_STEP, y + CASCADE_STEP);
+            if nx + w > screen.0 || ny + h > screen.1 {
+                (CASCADE_ORIGIN, CASCADE_ORIGIN)
+            } else {
+                (nx, ny)
+            }
+        }
+    }
+}
+
+pub fn note_label(id: &str) -> String {
+    format!("note-{id}")
+}
+
+pub const LIST_LABEL: &str = "list";
+```
+
+- [ ] **Step 5: 테스트 통과 확인**
+
+Run: `cd src-tauri && cargo test windows::`
+Expected: PASS — 5개 통과
+
+- [ ] **Step 6: 창 여닫기 함수 추가**
+
+`windows.rs`의 `LIST_LABEL` 아래에 이어 쓴다. 이 부분은 Tauri 런타임이 필요해 단위 테스트 대상이 아니다 — Task 10에서 수동 확인한다.
+
+```rust
+/// 메모 창을 연다. 이미 있으면 보이게 하고 앞으로 가져온다.
+pub fn open_note(app: &AppHandle, note: &Note) -> tauri::Result<()> {
+    let label = note_label(&note.id);
+    if let Some(win) = app.get_webview_window(&label) {
+        win.show()?;
+        win.set_focus()?;
+        return Ok(());
+    }
+
+    let url = WebviewUrl::App(format!("note.html?id={}", note.id).into());
+    WebviewWindowBuilder::new(app, &label, url)
+        .title("NoteforJun")
+        .inner_size(note.window.width as f64, note.window.height as f64)
+        .min_inner_size(220.0, 160.0)
+        .position(note.window.x as f64, note.window.y as f64)
+        .decorations(false)
+        .resizable(true)
+        .skip_taskbar(true)
+        .build()?;
+    Ok(())
+}
+
+pub fn hide_note(app: &AppHandle, id: &str) -> tauri::Result<()> {
+    if let Some(win) = app.get_webview_window(&note_label(id)) {
+        win.hide()?;
+    }
+    Ok(())
+}
+
+pub fn close_note(app: &AppHandle, id: &str) -> tauri::Result<()> {
+    if let Some(win) = app.get_webview_window(&note_label(id)) {
+        win.close()?;
+    }
+    Ok(())
+}
+
+/// 목록 창은 하나뿐이다.
+pub fn open_list(app: &AppHandle) -> tauri::Result<()> {
+    if let Some(win) = app.get_webview_window(LIST_LABEL) {
+        win.show()?;
+        win.set_focus()?;
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(app, LIST_LABEL, WebviewUrl::App("list.html".into()))
+        .title("모든 메모")
+        .inner_size(360.0, 520.0)
+        .min_inner_size(360.0, 240.0)
+        .decorations(false)
+        .resizable(true)
+        .build()?;
+    Ok(())
+}
+
+/// 앱 시작 시 호출한다. 보이는 상태로 저장된 메모를 전부 되살리고,
+/// 메모가 하나도 없으면 빈 메모 하나를 만들어 띄운다.
+pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
+    let summaries = storage::list(notes_dir).unwrap_or_default();
+    if summaries.is_empty() {
+        let note = crate::commands::new_note(notes_dir);
+        let _ = storage::save(notes_dir, &note);
+        return open_note(app, &note);
+    }
+    for s in summaries {
+        if let Ok(note) = storage::load(notes_dir, &s.id) {
+            if note.window.visible {
+                open_note(app, &note)?;
+            }
+        }
+    }
+    Ok(())
+}
+```
+
+- [ ] **Step 7: `commands.rs` 작성**
+
+```rust
+use std::path::PathBuf;
+
+use tauri::{AppHandle, State};
+use uuid::Uuid;
+
+use crate::note::{Note, NoteSummary, WindowState};
+use crate::{storage, windows};
+
+/// 앱 데이터 경로. `%APPDATA%\NoteforJun\notes` 를 가리킨다.
+pub struct AppPaths {
+    pub notes: PathBuf,
+}
+
+fn now_iso() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    // 정렬과 표시에만 쓰이므로 UTC 초 단위면 충분하다.
+    let days = secs / 86_400;
+    let rem = secs % 86_400;
+    let (y, m, d) = civil_from_days(days as i64);
+    format!(
+        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z",
+        rem / 3600,
+        (rem % 3600) / 60,
+        rem % 60
+    )
+}
+
+/// 1970-01-01 기준 경과 일수를 (년, 월, 일)로 바꾼다. Howard Hinnant 알고리즘.
+fn civil_from_days(z: i64) -> (i64, u32, u32) {
+    let z = z + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    (if m <= 2 { y + 1 } else { y }, m, d)
+}
+
+/// 새 메모 한 건. 기본색은 항상 노랑이다.
+pub fn new_note(_notes_dir: &PathBuf) -> Note {
+    let ts = now_iso();
+    Note {
+        id: Uuid::new_v4().to_string(),
+        title: String::new(),
+        content: String::new(),
+        color: "yellow".to_string(),
+        window: WindowState::default(),
+        created_at: ts.clone(),
+        updated_at: ts,
+    }
+}
+
+#[tauri::command]
+pub fn list_notes(paths: State<AppPaths>) -> Result<Vec<NoteSummary>, String> {
+    storage::list(&paths.notes).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn load_note(id: String, paths: State<AppPaths>) -> Result<Note, String> {
+    storage::load(&paths.notes, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn save_note(note: Note, paths: State<AppPaths>) -> Result<(), String> {
+    let mut note = note;
+    note.updated_at = now_iso();
+    storage::save(&paths.notes, &note).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn create_note(app: AppHandle, paths: State<AppPaths>) -> Result<String, String> {
+    let mut note = new_note(&paths.notes);
+
+    let last = app
+        .webview_windows()
+        .values()
+        .filter_map(|w| w.outer_position().ok())
+        .map(|p| (p.x, p.y))
+        .max_by_key(|(x, y)| x + y);
+    let screen = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|m| (m.size().width as i32, m.size().height as i32))
+        .unwrap_or((1920, 1080));
+    let (x, y) = windows::next_position(last, screen, (note.window.width, note.window.height));
+    note.window.x = x;
+    note.window.y = y;
+
+    storage::save(&paths.notes, &note).map_err(|e| e.to_string())?;
+    windows::open_note(&app, &note).map_err(|e| e.to_string())?;
+    Ok(note.id)
+}
+
+#[tauri::command]
+pub fn delete_note(id: String, app: AppHandle, paths: State<AppPaths>) -> Result<(), String> {
+    windows::close_note(&app, &id).map_err(|e| e.to_string())?;
+    storage::delete(&paths.notes, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn open_note_window(id: String, app: AppHandle, paths: State<AppPaths>) -> Result<(), String> {
+    let mut note = storage::load(&paths.notes, &id).map_err(|e| e.to_string())?;
+    note.window.visible = true;
+    storage::save(&paths.notes, &note).map_err(|e| e.to_string())?;
+    windows::open_note(&app, &note).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hide_note_window(id: String, app: AppHandle, paths: State<AppPaths>) -> Result<(), String> {
+    if let Ok(mut note) = storage::load(&paths.notes, &id) {
+        note.window.visible = false;
+        let _ = storage::save(&paths.notes, &note);
+    }
+    windows::hide_note(&app, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn open_list_window(app: AppHandle) -> Result<(), String> {
+    windows::open_list(&app).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_note_defaults_to_yellow_and_empty() {
+        let n = new_note(&PathBuf::from("."));
+        assert_eq!(n.color, "yellow");
+        assert!(n.title.is_empty());
+        assert!(n.content.is_empty());
+        assert_eq!(n.created_at, n.updated_at);
+    }
+
+    #[test]
+    fn civil_from_days_matches_known_dates() {
+        assert_eq!(civil_from_days(0), (1970, 1, 1));
+        assert_eq!(civil_from_days(19_000), (2022, 1, 8));
+    }
+
+    #[test]
+    fn now_iso_has_expected_shape() {
+        let s = now_iso();
+        assert_eq!(s.len(), 20);
+        assert!(s.ends_with('Z'));
+        assert_eq!(&s[4..5], "-");
+        assert_eq!(&s[10..11], "T");
+    }
+}
+```
+
+- [ ] **Step 8: 테스트 실패 → 통과 확인**
+
+Run: `cd src-tauri && cargo test commands::`
+Expected: 처음에는 컴파일 실패(모듈 미등록)일 수 있다. Step 1을 마쳤다면 PASS — 3개 통과
+
+- [ ] **Step 9: `lib.rs`에서 앱을 조립**
+
+`src-tauri/src/lib.rs` 전체를 아래로 바꾼다:
+
+```rust
+pub mod commands;
+pub mod html;
+pub mod note;
+pub mod storage;
+pub mod windows;
+
+use tauri::Manager;
+
+use crate::commands::AppPaths;
+
+pub fn run() {
+    tauri::Builder::default()
+        .setup(|app| {
+            let base = app
+                .path()
+                .data_dir()
+                .expect("데이터 폴더를 찾을 수 없습니다")
+                .join("NoteforJun");
+            let notes = storage::notes_dir(&base);
+            std::fs::create_dir_all(&notes)?;
+
+            windows::restore_all(app.handle(), &notes)?;
+            app.manage(AppPaths { notes });
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::list_notes,
+            commands::load_note,
+            commands::save_note,
+            commands::create_note,
+            commands::delete_note,
+            commands::open_note_window,
+            commands::hide_note_window,
+            commands::open_list_window,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running NoteforJun");
+}
+```
+
+- [ ] **Step 10: 부트스트랩 창 제거**
+
+`src-tauri/tauri.conf.json`의 `app.windows`를 빈 배열로 바꾼다. 이제 창은 코드가 만든다.
+
+```json
+    "windows": [],
+```
+
+- [ ] **Step 11: 실행 확인**
+
+Run: `npm run tauri dev`
+Expected: 메모가 하나도 없으므로 빈 메모 창 하나가 화면 중앙에 뜬다. 창 테두리가 없는 상태(`decorations: false`)이므로 흰 사각형으로 보이는 것이 정상이다. `%APPDATA%\NoteforJun\notes\`에 JSON 파일이 하나 생겼는지 확인한다.
+
+- [ ] **Step 12: 커밋**
+
+```bash
+git add -A
+git commit -m "feat: 창 관리와 Tauri 명령 8종"
+```
+
+---
+
+### Task 4: 디자인 토큰과 메모 창 껍데기
+
+**Files:**
+- Create: `src/styles/tokens.css`, `src/styles/note.css`
+- Create: `src/lib/colors.js`, `src/lib/colors.test.js`
+- Create: `vitest.config.js`, `test/setup.js`
+- Modify: `src/note.html`
+
+**Interfaces:**
+- Consumes: 없음
+- Produces:
+  - `colors.js`: `COLORS` 배열 (`{ key, bar, fg }` × 6), `DEFAULT_COLOR = 'yellow'`
+  - CSS 변수: `--nfj-paper`, `--nfj-ink`, `--nfj-highlight`, `--nfj-font`
+  - `note.html` DOM: `#titlebar`, `#new-note`, `#title`, `#menu-btn`, `#close`, `#editor`
+
+- [ ] **Step 1: Vitest 설정 작성**
+
+`vitest.config.js`:
+
+```js
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./test/setup.js'],
+    include: ['src/**/*.test.js'],
+  },
+})
+```
+
+`test/setup.js` — ProseMirror는 jsdom에 없는 DOM 측정 API를 부른다. 없으면 에디터 생성 자체가 터지므로 미리 채워 둔다.
+
+```js
+// jsdom에는 아래 API가 없거나 비어 있어서 ProseMirror가 초기화에 실패한다.
+if (!Range.prototype.getBoundingClientRect) {
+  Range.prototype.getBoundingClientRect = () => ({
+    top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0, x: 0, y: 0,
+  })
+}
+if (!Range.prototype.getClientRects) {
+  Range.prototype.getClientRects = () => ({
+    length: 0,
+    item: () => null,
+    [Symbol.iterator]: function* () {},
+  })
+}
+if (!document.elementFromPoint) {
+  document.elementFromPoint = () => null
+}
+```
+
+- [ ] **Step 2: 색 정의의 실패하는 테스트 작성**
+
+`src/lib/colors.test.js` — 이 테스트의 목적은 "색이 6개를 넘지 않는다"는 설계 원칙을 코드로 고정하는 것이다.
+
+```js
+import { describe, expect, it } from 'vitest'
+import { COLORS, DEFAULT_COLOR, colorOf } from './colors.js'
+
+describe('COLORS', () => {
+  it('정확히 6가지다', () => {
+    expect(COLORS).toHaveLength(6)
+  })
+
+  it('설계 문서의 값과 정확히 일치한다', () => {
+    expect(COLORS).toEqual([
+      { key: 'yellow', bar: '#E0B84D', fg: '#3D2F10' },
+      { key: 'green', bar: '#7FA86B', fg: '#FFFFFF' },
+      { key: 'purple', bar: '#A98BC4', fg: '#FFFFFF' },
+      { key: 'blue', bar: '#6FA3BF', fg: '#FFFFFF' },
+      { key: 'orange', bar: '#D98C6A', fg: '#FFFFFF' },
+      { key: 'gray', bar: '#9A9A94', fg: '#FFFFFF' },
+    ])
+  })
+
+  it('기본색은 노랑이다', () => {
+    expect(DEFAULT_COLOR).toBe('yellow')
+  })
+
+  it('모르는 key는 기본색으로 되돌린다', () => {
+    expect(colorOf('없는색').key).toBe('yellow')
+    expect(colorOf('blue').bar).toBe('#6FA3BF')
+  })
+})
+```
+
+- [ ] **Step 3: 테스트 실패 확인**
+
+Run: `npm test -- colors`
+Expected: FAIL — `Failed to resolve import "./colors.js"`
+
+- [ ] **Step 4: `colors.js` 구현**
+
+```js
+/**
+ * 메모 상단바 색. 6가지가 전부이며 사용자가 색을 만들 수 없다.
+ * 색을 늘리려면 colors.test.js도 같이 고쳐야 한다 — 의도적인 마찰이다.
+ */
+export const COLORS = [
+  { key: 'yellow', bar: '#E0B84D', fg: '#3D2F10' },
+  { key: 'green', bar: '#7FA86B', fg: '#FFFFFF' },
+  { key: 'purple', bar: '#A98BC4', fg: '#FFFFFF' },
+  { key: 'blue', bar: '#6FA3BF', fg: '#FFFFFF' },
+  { key: 'orange', bar: '#D98C6A', fg: '#FFFFFF' },
+  { key: 'gray', bar: '#9A9A94', fg: '#FFFFFF' },
+]
+
+export const DEFAULT_COLOR = 'yellow'
+
+export function colorOf(key) {
+  return COLORS.find((c) => c.key === key) ?? COLORS[0]
+}
+```
+
+- [ ] **Step 5: 테스트 통과 확인**
+
+Run: `npm test -- colors`
+Expected: PASS — 4개 통과
+
+- [ ] **Step 6: `tokens.css` 작성**
+
+`src/styles/tokens.css`:
+
+```css
+:root {
+  --nfj-paper: #fbf8f2;
+  --nfj-ink: #2e2e2c;
+  --nfj-highlight: #f7e27f;
+  --nfj-font: 'Pretendard', 'Malgun Gothic', sans-serif;
+
+  --nfj-body-size: 14px;
+  --nfj-body-line: 1.72;
+  --nfj-h1-size: 19px;
+  --nfj-title-size: 13px;
+  --nfj-preview-size: 12px;
+
+  --nfj-bar-height: 34px;
+  --nfj-radius: 6px;
+}
+
+/* 상단바 색 6종. colors.js의 COLORS와 값이 일치해야 한다. */
+[data-color='yellow'] { --nfj-bar: #e0b84d; --nfj-bar-fg: #3d2f10; }
+[data-color='green']  { --nfj-bar: #7fa86b; --nfj-bar-fg: #ffffff; }
+[data-color='purple'] { --nfj-bar: #a98bc4; --nfj-bar-fg: #ffffff; }
+[data-color='blue']   { --nfj-bar: #6fa3bf; --nfj-bar-fg: #ffffff; }
+[data-color='orange'] { --nfj-bar: #d98c6a; --nfj-bar-fg: #ffffff; }
+[data-color='gray']   { --nfj-bar: #9a9a94; --nfj-bar-fg: #ffffff; }
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: var(--nfj-font);
+  color: var(--nfj-ink);
+  background: transparent;
+  overflow: hidden;
+}
+```
+
+- [ ] **Step 7: `note.css` 작성**
+
+`src/styles/note.css`:
+
+```css
+#shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--nfj-paper);
+  border-radius: var(--nfj-radius);
+  overflow: hidden;
+}
+
+#titlebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: var(--nfj-bar-height);
+  padding: 0 8px;
+  background: var(--nfj-bar);
+  color: var(--nfj-bar-fg);
+  user-select: none;
+}
+
+.bar-btn {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.8;
+}
+.bar-btn:hover { opacity: 1; background: rgba(0, 0, 0, 0.1); }
+
+#title {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: var(--nfj-title-size);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  outline: none;
+}
+#title::placeholder { color: inherit; opacity: 0.45; font-weight: 500; }
+
+#editor {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 11px 12px 20px;
+  font-size: var(--nfj-body-size);
+  line-height: var(--nfj-body-line);
+}
+#editor .ProseMirror { outline: none; min-height: 100%; }
+#editor p { margin: 0; }
+#editor h1 { margin: 0 0 5px; font-size: var(--nfj-h1-size); font-weight: 700; }
+#editor mark { background: var(--nfj-highlight); border-radius: 2px; padding: 0 2px; color: inherit; }
+
+#editor ul[data-type='taskList'] { list-style: none; margin: 0; padding: 0; }
+#editor ul[data-type='taskList'] li { display: flex; align-items: flex-start; gap: 7px; }
+#editor ul[data-type='taskList'] li > label { flex: 0 0 auto; padding-top: 3px; }
+#editor ul[data-type='taskList'] li > div { flex: 1 1 auto; min-width: 0; }
+#editor ul[data-type='taskList'] li[data-checked='true'] > div {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+/* 빈 문서일 때만 안내 문구를 보여준다 */
+#editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  opacity: 0.4;
+}
+```
+
+- [ ] **Step 8: `note.html`을 실제 구조로 교체**
+
+```html
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>NoteforJun</title>
+  </head>
+  <body>
+    <div id="shell" data-color="yellow">
+      <div id="titlebar" data-tauri-drag-region>
+        <button class="bar-btn" id="new-note" title="새 메모 (Ctrl+Alt+N)">+</button>
+        <input id="title" type="text" maxlength="20" placeholder="제목" />
+        <button class="bar-btn" id="menu-btn" title="메뉴">⋯</button>
+        <button class="bar-btn" id="close" title="닫기">×</button>
+      </div>
+      <div id="editor"></div>
+    </div>
+    <script type="module" src="./note.js"></script>
+  </body>
+</html>
+```
+
+- [ ] **Step 9: `note.js` 임시 진입점 작성**
+
+Task 6에서 본격적으로 채운다. 지금은 스타일과 폰트가 실제로 적용되는지 눈으로 확인하는 것이 목적이다.
+
+`src/note.js`:
+
+```js
+import 'pretendard/dist/web/static/pretendard.css'
+import './styles/tokens.css'
+import './styles/note.css'
+
+document.getElementById('editor').textContent = '여기에 메모…'
+```
+
+- [ ] **Step 10: 눈으로 확인**
+
+Run: `npm run tauri dev`
+Expected: 노란 상단바(높이 34px), 그 안에 `+`, "제목" 안내 문구, `⋯`, `×`. 본문은 아이보리 배경. 글꼴이 Pretendard로 보인다. 상단바 빈 곳을 끌면 창이 움직인다.
+
+- [ ] **Step 11: 커밋**
+
+```bash
+git add -A
+git commit -m "feat: 디자인 토큰과 메모 창 레이아웃"
+```
+
+---
+
+### Task 5: 편집기 — Tiptap 확장과 입력 규칙
+
+**Files:**
+- Create: `src/editor/rules.js`, `src/editor/rules.test.js`
+- Create: `src/editor/extensions.js`
+- Create: `src/editor/editor.js`, `src/editor/editor.test.js`
+
+**Interfaces:**
+- Consumes: 없음
+- Produces:
+  - `rules.js`: `TASK_INPUT_RULE` (정규식)
+  - `extensions.js`: `buildExtensions() -> Extension[]`
+  - `editor.js`: `createEditor({ element, content, onUpdate }) -> Editor`
+  - `editor.test.js`가 내보내지는 않지만 재사용되는 개념: ProseMirror 트랜잭션으로 타이핑을 흉내내는 `typeText(editor, text)`
+
+- [ ] **Step 1: 입력 규칙 정규식의 실패하는 테스트 작성**
+
+`src/editor/rules.test.js`:
+
+```js
+import { describe, expect, it } from 'vitest'
+import { TASK_INPUT_RULE } from './rules.js'
+
+describe('TASK_INPUT_RULE', () => {
+  it('하이픈 + 공백에 반응한다', () => {
+    expect('- ').toMatch(TASK_INPUT_RULE)
+  })
+
+  it('대괄호 쌍 + 공백에 반응한다', () => {
+    expect('[] ').toMatch(TASK_INPUT_RULE)
+  })
+
+  it('공백 없이는 반응하지 않는다', () => {
+    expect('-').not.toMatch(TASK_INPUT_RULE)
+    expect('[]').not.toMatch(TASK_INPUT_RULE)
+  })
+
+  it('줄 중간의 하이픈에는 반응하지 않는다', () => {
+    expect('가- ').not.toMatch(TASK_INPUT_RULE)
+  })
+
+  it('별표나 플러스에는 반응하지 않는다 (글머리표는 지원하지 않는다)', () => {
+    expect('* ').not.toMatch(TASK_INPUT_RULE)
+    expect('+ ').not.toMatch(TASK_INPUT_RULE)
+  })
+})
+```
+
+- [ ] **Step 2: 테스트 실패 확인**
+
+Run: `npm test -- rules`
+Expected: FAIL — `Failed to resolve import "./rules.js"`
+
+- [ ] **Step 3: `rules.js` 구현**
+
+```js
+/**
+ * 체크박스를 만드는 입력 규칙.
+ * 설계상 `- `와 `[] ` 두 가지만 받는다. 글머리표(*, +)는 지원하지 않으므로
+ * 하이픈이 체크박스와 충돌하지 않는다.
+ */
+export const TASK_INPUT_RULE = /^(?:-|\[\])\s$/
+```
+
+- [ ] **Step 4: 테스트 통과 확인**
+
+Run: `npm test -- rules`
+Expected: PASS — 5개 통과
+
+- [ ] **Step 5: `extensions.js` 작성**
+
+```js
+import { wrappingInputRule } from '@tiptap/core'
+import Bold from '@tiptap/extension-bold'
+import Document from '@tiptap/extension-document'
+import Heading from '@tiptap/extension-heading'
+import Highlight from '@tiptap/extension-highlight'
+import History from '@tiptap/extension-history'
+import Italic from '@tiptap/extension-italic'
+import Paragraph from '@tiptap/extension-paragraph'
+import Placeholder from '@tiptap/extension-placeholder'
+import TaskItem from '@tiptap/extension-task-item'
+import TaskList from '@tiptap/extension-task-list'
+import Text from '@tiptap/extension-text'
+import Underline from '@tiptap/extension-underline'
+
+import { TASK_INPUT_RULE } from './rules.js'
+
+/**
+ * 기본 입력 규칙(`[ ] `, `[x] `)을 우리 규칙(`- `, `[] `)으로 갈아끼운다.
+ * wrappingInputRule은 taskList로 감싸는 데 필요한 taskItem을 스키마에서 알아서 찾아 넣는다.
+ */
+const TaskListWithOurRules = TaskList.extend({
+  addInputRules() {
+    return [wrappingInputRule({ find: TASK_INPUT_RULE, type: this.type })]
+  },
+})
+
+/**
+ * 이 목록이 지원 서식의 전부다. 여기 없는 것은 동작하지 않는다.
+ * 글머리표, 인용구, 코드블록, 링크, 이미지, 취소선은 의도적으로 빠져 있다.
+ */
+export function buildExtensions() {
+  return [
+    Document,
+    Paragraph,
+    Text,
+    Heading.configure({ levels: [1] }),
+    TaskListWithOurRules,
+    TaskItem.configure({ nested: false }),
+    Bold,
+    Italic,
+    Underline,
+    Highlight.configure({ multicolor: false }),
+    History,
+    Placeholder.configure({ placeholder: '여기에 메모…' }),
+  ]
+}
+```
+
+`Heading.configure({ levels: [1] })`이 `##`을 막는 장치다. Tiptap은 설정된 단계만 정규식에 넣으므로 `## `는 아무 일도 일어나지 않는다.
+
+- [ ] **Step 6: `editor.js` 작성**
+
+```js
+import { Editor } from '@tiptap/core'
+
+import { buildExtensions } from './extensions.js'
+
+/**
+ * @param {object} options
+ * @param {HTMLElement} options.element  에디터를 붙일 DOM
+ * @param {string} options.content       저장돼 있던 HTML (없으면 빈 문자열)
+ * @param {(html: string) => void} options.onUpdate  내용이 바뀔 때마다 호출
+ * @returns {Editor}
+ */
+export function createEditor({ element, content = '', onUpdate = () => {} }) {
+  return new Editor({
+    element,
+    content,
+    extensions: buildExtensions(),
+    onUpdate: ({ editor }) => onUpdate(editor.getHTML()),
+  })
+}
+```
+
+- [ ] **Step 7: 에디터 동작의 실패하는 테스트 작성**
+
+`src/editor/editor.test.js`:
+
+```js
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createEditor } from './editor.js'
+
+let editor
+let element
+
+/**
+ * 입력 규칙은 실제 타이핑(handleTextInput)에만 반응한다.
+ * insertContent로는 발동하지 않으므로 ProseMirror에 한 글자씩 직접 흘려보낸다.
+ */
+function typeText(ed, text) {
+  const { view } = ed
+  for (const ch of text) {
+    const { from, to } = view.state.selection
+    const handled = view.someProp('handleTextInput', (f) => f(view, from, to, ch))
+    if (!handled) {
+      view.dispatch(view.state.tr.insertText(ch, from, to))
+    }
+  }
+}
+
+beforeEach(() => {
+  element = document.createElement('div')
+  document.body.appendChild(element)
+  editor = createEditor({ element, content: '' })
+})
+
+afterEach(() => {
+  editor.destroy()
+  element.remove()
+})
+
+describe('큰 글씨', () => {
+  it('"# "를 치면 h1이 되고 # 기호는 남지 않는다', () => {
+    typeText(editor, '# 이번주 할일')
+    const html = editor.getHTML()
+    expect(html).toContain('<h1>이번주 할일</h1>')
+    expect(html).not.toContain('#')
+  })
+
+  it('"## "는 아무 일도 하지 않는다 (헤딩은 1단계뿐)', () => {
+    typeText(editor, '## 부제목')
+    expect(editor.getHTML()).not.toContain('<h1>')
+    expect(editor.getText()).toBe('## 부제목')
+  })
+})
+
+describe('체크박스', () => {
+  it('"- "를 치면 체크박스가 된다', () => {
+    typeText(editor, '- 장보기')
+    const html = editor.getHTML()
+    expect(html).toContain('data-type="taskList"')
+    expect(html).toContain('장보기')
+  })
+
+  it('"[] "를 쳐도 체크박스가 된다', () => {
+    typeText(editor, '[] 운동')
+    expect(editor.getHTML()).toContain('data-type="taskList"')
+  })
+
+  it('Enter를 누르면 다음 항목이 생긴다', () => {
+    typeText(editor, '- 장보기')
+    editor.commands.splitListItem('taskItem')
+    typeText(editor, '운동')
+    const items = editor.getHTML().match(/data-checked=/g) ?? []
+    expect(items).toHaveLength(2)
+  })
+
+  it('빈 항목에서 Enter를 누르면 목록에서 빠져나온다', () => {
+    typeText(editor, '- 장보기')
+    editor.commands.splitListItem('taskItem')
+    editor.commands.liftListItem('taskItem')
+    expect(editor.getHTML()).toContain('<p></p>')
+  })
+})
+
+describe('선택 서식', () => {
+  beforeEach(() => {
+    typeText(editor, '중요한 부분')
+    editor.commands.selectAll()
+  })
+
+  it('굵게가 적용되고 해제된다', () => {
+    editor.commands.toggleBold()
+    expect(editor.getHTML()).toContain('<strong>')
+    editor.commands.toggleBold()
+    expect(editor.getHTML()).not.toContain('<strong>')
+  })
+
+  it('기울임이 적용된다', () => {
+    editor.commands.toggleItalic()
+    expect(editor.getHTML()).toContain('<em>')
+  })
+
+  it('밑줄이 적용된다', () => {
+    editor.commands.toggleUnderline()
+    expect(editor.getHTML()).toContain('<u>')
+  })
+
+  it('형광펜이 적용되고 isActive로 상태를 읽을 수 있다', () => {
+    editor.commands.toggleHighlight()
+    expect(editor.getHTML()).toContain('<mark>')
+    expect(editor.isActive('highlight')).toBe(true)
+  })
+})
+
+describe('지원하지 않는 서식', () => {
+  it('글머리표 확장이 없다', () => {
+    expect(editor.schema.nodes.bulletList).toBeUndefined()
+  })
+
+  it('취소선 확장이 없다', () => {
+    expect(editor.schema.marks.strike).toBeUndefined()
+  })
+})
+```
+
+- [ ] **Step 8: 테스트 실행**
+
+Run: `npm test -- editor`
+Expected: PASS — 13개 통과
+
+만약 `Range`나 `getClientRects` 관련 오류가 난다면 `test/setup.js`(Task 4 Step 1)가 제대로 로드되는지 확인한다. 특정 테스트가 jsdom 한계로 끝내 돌지 않으면 **테스트를 약화시키지 말고** 해당 항목을 Task 10 수동 체크리스트로 옮기고 그 사유를 주석으로 남긴다.
+
+- [ ] **Step 9: 커밋**
+
+```bash
+git add src/editor test/setup.js vitest.config.js
+git commit -m "feat: Tiptap 편집기와 입력 규칙 (# / - / [])"
+```
+
+---
+
+### Task 6: 메모 창 조립 — 제목, 자동 저장, 색 메뉴
+
+**Files:**
+- Create: `src/lib/api.js`, `src/lib/debounce.js`, `src/lib/debounce.test.js`
+- Create: `src/lib/title.js`, `src/lib/title.test.js`
+- Modify: `src/note.js`
+- Modify: `src/styles/note.css` (색 메뉴 스타일 추가)
+
+**Interfaces:**
+- Consumes: `createEditor` (Task 5), `COLORS`/`colorOf`/`DEFAULT_COLOR` (Task 4), Tauri 명령 8종 (Task 3)
+- Produces:
+  - `api.js`: `listNotes()`, `loadNote(id)`, `saveNote(note)`, `createNote()`, `deleteNote(id)`, `openNoteWindow(id)`, `hideNoteWindow(id)`, `openListWindow()` — 전부 Promise
+  - `debounce.js`: `debounce(fn, ms) -> { call, flush, cancel }`
+  - `title.js`: `TITLE_MAX = 20`, `clampTitle(str) -> string`
+
+- [ ] **Step 1: `debounce`의 실패하는 테스트 작성**
+
+`src/lib/debounce.test.js`:
+
+```js
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { debounce } from './debounce.js'
+
+beforeEach(() => vi.useFakeTimers())
+afterEach(() => vi.useRealTimers())
+
+describe('debounce', () => {
+  it('지연 시간이 지나야 호출된다', () => {
+    const fn = vi.fn()
+    const d = debounce(fn, 500)
+    d.call('a')
+    expect(fn).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(499)
+    expect(fn).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(fn).toHaveBeenCalledWith('a')
+  })
+
+  it('연달아 부르면 마지막 인자로 한 번만 호출된다', () => {
+    const fn = vi.fn()
+    const d = debounce(fn, 500)
+    d.call('a')
+    vi.advanceTimersByTime(200)
+    d.call('b')
+    vi.advanceTimersByTime(500)
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(fn).toHaveBeenCalledWith('b')
+  })
+
+  it('flush는 기다리지 않고 즉시 호출한다', () => {
+    const fn = vi.fn()
+    const d = debounce(fn, 500)
+    d.call('a')
+    d.flush()
+    expect(fn).toHaveBeenCalledWith('a')
+  })
+
+  it('대기 중인 호출이 없으면 flush는 아무 일도 하지 않는다', () => {
+    const fn = vi.fn()
+    debounce(fn, 500).flush()
+    expect(fn).not.toHaveBeenCalled()
+  })
+
+  it('cancel하면 호출되지 않는다', () => {
+    const fn = vi.fn()
+    const d = debounce(fn, 500)
+    d.call('a')
+    d.cancel()
+    vi.advanceTimersByTime(1000)
+    expect(fn).not.toHaveBeenCalled()
+  })
+})
+```
+
+- [ ] **Step 2: 테스트 실패 확인**
+
+Run: `npm test -- debounce`
+Expected: FAIL — `Failed to resolve import "./debounce.js"`
+
+- [ ] **Step 3: `debounce.js` 구현**
+
+```js
+/**
+ * 자동 저장용. `flush`가 있는 이유는 창을 닫거나 앱이 끝날 때
+ * 대기 중인 저장을 버리지 않고 즉시 내보내야 하기 때문이다.
+ */
+export function debounce(fn, ms) {
+  let timer = null
+  let pending = null
+
+  return {
+    call(...args) {
+      pending = args
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        timer = null
+        const args2 = pending
+        pending = null
+        fn(...args2)
+      }, ms)
+    },
+    flush() {
+      if (!timer) return
+      clearTimeout(timer)
+      timer = null
+      const args = pending
+      pending = null
+      fn(...args)
+    },
+    cancel() {
+      if (timer) clearTimeout(timer)
+      timer = null
+      pending = null
+    },
+  }
+}
+```
+
+- [ ] **Step 4: 테스트 통과 확인**
+
+Run: `npm test -- debounce`
+Expected: PASS — 5개 통과
+
+- [ ] **Step 5: `title`의 실패하는 테스트 작성**
+
+`src/lib/title.test.js`:
+
+```js
+import { describe, expect, it } from 'vitest'
+import { TITLE_MAX, clampTitle } from './title.js'
+
+describe('clampTitle', () => {
+  it('최대 길이는 20자다', () => {
+    expect(TITLE_MAX).toBe(20)
+  })
+
+  it('20자 이하는 그대로 둔다', () => {
+    expect(clampTitle('6월 일본여행 계획(오사카)')).toBe('6월 일본여행 계획(오사카)')
+  })
+
+  it('20자를 넘으면 잘라낸다', () => {
+    const long = '가'.repeat(25)
+    expect(clampTitle(long)).toHaveLength(20)
+  })
+
+  it('줄바꿈은 공백으로 바꾼다 (붙여넣기 대비)', () => {
+    expect(clampTitle('첫줄\n둘째줄')).toBe('첫줄 둘째줄')
+  })
+
+  it('앞뒤 공백을 정리한다', () => {
+    expect(clampTitle('  제목  ')).toBe('제목')
+  })
+
+  it('null이나 undefined는 빈 문자열이 된다', () => {
+    expect(clampTitle(null)).toBe('')
+    expect(clampTitle(undefined)).toBe('')
+  })
+})
+```
+
+- [ ] **Step 6: 테스트 실패 확인**
+
+Run: `npm test -- title`
+Expected: FAIL — `Failed to resolve import "./title.js"`
+
+- [ ] **Step 7: `title.js` 구현**
+
+```js
+export const TITLE_MAX = 20
+
+/**
+ * HTML의 maxlength는 붙여넣기와 IME 조합을 완전히 막지 못한다.
+ * 저장 직전에 한 번 더 거른다.
+ */
+export function clampTitle(value) {
+  if (!value) return ''
+  return String(value).replace(/[\r\n]+/g, ' ').trim().slice(0, TITLE_MAX)
+}
+```
+
+- [ ] **Step 8: 테스트 통과 확인**
+
+Run: `npm test -- title`
+Expected: PASS — 6개 통과
+
+- [ ] **Step 9: `api.js` 작성**
+
+Tauri와 이야기하는 유일한 통로다. 다른 파일은 `invoke`를 직접 부르지 않는다.
+
+```js
+import { invoke } from '@tauri-apps/api/core'
+
+export const listNotes = () => invoke('list_notes')
+export const loadNote = (id) => invoke('load_note', { id })
+export const saveNote = (note) => invoke('save_note', { note })
+export const createNote = () => invoke('create_note')
+export const deleteNote = (id) => invoke('delete_note', { id })
+export const openNoteWindow = (id) => invoke('open_note_window', { id })
+export const hideNoteWindow = (id) => invoke('hide_note_window', { id })
+export const openListWindow = () => invoke('open_list_window')
+```
+
+- [ ] **Step 10: 색 메뉴 스타일 추가**
+
+`src/styles/note.css` 맨 아래에 덧붙인다:
+
+```css
+#menu {
+  position: absolute;
+  top: calc(var(--nfj-bar-height) + 4px);
+  right: 8px;
+  z-index: 10;
+  padding: 8px;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+}
+#menu[hidden] { display: none; }
+
+#swatches { display: flex; gap: 6px; margin-bottom: 8px; }
+.swatch {
+  width: 22px;
+  height: 22px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+}
+.swatch[aria-pressed='true'] { border-color: #2e2e2c; }
+
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--nfj-ink);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-item:hover { background: rgba(0, 0, 0, 0.06); }
+```
+
+- [ ] **Step 11: `note.html`에 메뉴 DOM 추가**
+
+`<div id="editor"></div>` **바로 다음**, `#shell` 안에 넣는다:
+
+```html
+      <div id="menu" hidden>
+        <div id="swatches"></div>
+        <button class="menu-item" id="open-list">모든 메모 보기</button>
+      </div>
+```
+
+`#shell`에 `position: relative;`가 필요하므로 `note.css`의 `#shell` 규칙에 한 줄 추가한다:
+
+```css
+  position: relative;
+```
+
+- [ ] **Step 12: `note.js` 전체 구현**
+
+```js
+import 'pretendard/dist/web/static/pretendard.css'
+import './styles/tokens.css'
+import './styles/note.css'
+
+import { getCurrentWindow } from '@tauri-apps/api/window'
+
+import { createEditor } from './editor/editor.js'
+import {
+  createNote,
+  hideNoteWindow,
+  loadNote,
+  openListWindow,
+  saveNote,
+} from './lib/api.js'
+import { COLORS, DEFAULT_COLOR } from './lib/colors.js'
+import { debounce } from './lib/debounce.js'
+import { clampTitle } from './lib/title.js'
+
+const SAVE_DELAY = 500
+
+const id = new URLSearchParams(location.search).get('id')
+const shell = document.getElementById('shell')
+const titleInput = document.getElementById('title')
+const menu = document.getElementById('menu')
+const swatches = document.getElementById('swatches')
+
+let note = null
+let editor = null
+
+const saver = debounce(() => {
+  if (note) saveNote(note)
+}, SAVE_DELAY)
+
+function applyColor(key) {
+  shell.dataset.color = key
+  for (const btn of swatches.children) {
+    btn.setAttribute('aria-pressed', String(btn.dataset.key === key))
+  }
+}
+
+function buildSwatches() {
+  for (const c of COLORS) {
+    const btn = document.createElement('button')
+    btn.className = 'swatch'
+    btn.dataset.key = c.key
+    btn.style.background = c.bar
+    btn.title = c.key
+    btn.addEventListener('click', () => {
+      note.color = c.key
+      applyColor(c.key)
+      saver.call()
+      menu.hidden = true
+    })
+    swatches.appendChild(btn)
+  }
+}
+
+async function boot() {
+  note = await loadNote(id)
+  buildSwatches()
+  applyColor(note.color || DEFAULT_COLOR)
+
+  titleInput.value = note.title
+  titleInput.addEventListener('input', () => {
+    note.title = clampTitle(titleInput.value)
+    saver.call()
+  })
+
+  editor = createEditor({
+    element: document.getElementById('editor'),
+    content: note.content,
+    onUpdate: (html) => {
+      note.content = html
+      saver.call()
+    },
+  })
+
+  document.getElementById('new-note').addEventListener('click', () => createNote())
+  document.getElementById('open-list').addEventListener('click', () => {
+    menu.hidden = true
+    openListWindow()
+  })
+  document.getElementById('menu-btn').addEventListener('click', (e) => {
+    e.stopPropagation()
+    menu.hidden = !menu.hidden
+  })
+  document.addEventListener('click', () => {
+    menu.hidden = true
+  })
+  document.getElementById('close').addEventListener('click', async () => {
+    saver.flush()
+    await hideNoteWindow(id)
+  })
+
+  // 창 위치·크기는 이동이 끝난 시점에만 저장한다.
+  const win = getCurrentWindow()
+  const remember = debounce(async () => {
+    const pos = await win.outerPosition()
+    const size = await win.innerSize()
+    note.window = { x: pos.x, y: pos.y, width: size.width, height: size.height, visible: true }
+    saveNote(note)
+  }, SAVE_DELAY)
+  await win.onMoved(() => remember.call())
+  await win.onResized(() => remember.call())
+
+  titleInput.focus()
+}
+
+boot()
+```
+
+- [ ] **Step 13: 전체 테스트 실행**
+
+Run: `npm test`
+Expected: PASS — colors 4 + rules 5 + editor 13 + debounce 5 + title 6 = 33개 통과
+
+- [ ] **Step 14: 손으로 확인**
+
+Run: `npm run tauri dev`
+Expected:
+- 제목을 치면 상단바에 나타나고 21번째 글자가 안 들어간다
+- 본문에 `# `을 치면 글자가 커지고 `#`이 사라진다
+- `- `를 치면 체크박스가 생기고 클릭하면 취소선이 그어진다
+- `⋯`를 누르면 색 6개와 "모든 메모 보기"가 뜬다. 색을 고르면 상단바가 바뀐다
+- 앱을 껐다 켜면 쓴 내용과 색이 그대로 남아 있다
+
+- [ ] **Step 15: 커밋**
+
+```bash
+git add -A
+git commit -m "feat: 메모 창 조립 (제목 20자, 자동 저장, 색 메뉴)"
+```
+
+---
+
+### Task 7: 드래그 팝업 (B I U ✏)
+
+**Files:**
+- Create: `src/editor/bubble.js`, `src/editor/bubble.test.js`
+- Modify: `src/note.js`
+- Modify: `src/styles/note.css`
+
+**Interfaces:**
+- Consumes: Tiptap `Editor` 인스턴스 (Task 5)
+- Produces: `bubble.js`: `createBubble({ editor, container }) -> { element, update, destroy }`
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`src/editor/bubble.test.js`:
+
+```js
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createEditor } from './editor.js'
+import { createBubble } from './bubble.js'
+
+let editor
+let element
+let container
+let bubble
+
+function typeText(ed, text) {
+  const { view } = ed
+  for (const ch of text) {
+    const { from, to } = view.state.selection
+    const handled = view.someProp('handleTextInput', (f) => f(view, from, to, ch))
+    if (!handled) view.dispatch(view.state.tr.insertText(ch, from, to))
+  }
+}
+
+beforeEach(() => {
+  container = document.createElement('div')
+  element = document.createElement('div')
+  container.appendChild(element)
+  document.body.appendChild(container)
+  editor = createEditor({ element, content: '' })
+  bubble = createBubble({ editor, container })
+})
+
+afterEach(() => {
+  bubble.destroy()
+  editor.destroy()
+  container.remove()
+})
+
+describe('드래그 팝업', () => {
+  it('버튼이 네 개다 (B I U 형광펜)', () => {
+    const keys = [...bubble.element.querySelectorAll('button')].map((b) => b.dataset.mark)
+    expect(keys).toEqual(['bold', 'italic', 'underline', 'highlight'])
+  })
+
+  it('선택이 없으면 숨어 있다', () => {
+    bubble.update()
+    expect(bubble.element.hidden).toBe(true)
+  })
+
+  it('글자를 선택하면 나타난다', () => {
+    typeText(editor, '중요한 부분')
+    editor.commands.selectAll()
+    bubble.update()
+    expect(bubble.element.hidden).toBe(false)
+  })
+
+  it('버튼을 누르면 서식이 적용된다', () => {
+    typeText(editor, '중요한 부분')
+    editor.commands.selectAll()
+    bubble.element.querySelector('[data-mark="highlight"]').click()
+    expect(editor.getHTML()).toContain('<mark>')
+  })
+
+  it('이미 적용된 서식은 눌린 상태로 보인다', () => {
+    typeText(editor, '중요한 부분')
+    editor.commands.selectAll()
+    editor.commands.toggleBold()
+    bubble.update()
+    const boldBtn = bubble.element.querySelector('[data-mark="bold"]')
+    expect(boldBtn.getAttribute('aria-pressed')).toBe('true')
+    expect(bubble.element.querySelector('[data-mark="italic"]').getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('같은 버튼을 다시 누르면 해제된다', () => {
+    typeText(editor, '중요한 부분')
+    editor.commands.selectAll()
+    const btn = bubble.element.querySelector('[data-mark="bold"]')
+    btn.click()
+    expect(editor.getHTML()).toContain('<strong>')
+    editor.commands.selectAll()
+    btn.click()
+    expect(editor.getHTML()).not.toContain('<strong>')
+  })
+})
+```
+
+- [ ] **Step 2: 테스트 실패 확인**
+
+Run: `npm test -- bubble`
+Expected: FAIL — `Failed to resolve import "./bubble.js"`
+
+- [ ] **Step 3: `bubble.js` 구현**
+
+```js
+/**
+ * 드래그하면 뜨는 서식 팝업.
+ * 형광펜에 단축키가 없으므로 이 팝업이 형광펜의 유일한 입구다.
+ * 익숙한 B I U 옆에 두어 따로 알려주지 않아도 눈에 띄게 한다.
+ */
+const BUTTONS = [
+  { mark: 'bold', label: 'B', command: 'toggleBold', title: '굵게 (Ctrl+B)' },
+  { mark: 'italic', label: 'I', command: 'toggleItalic', title: '기울임 (Ctrl+I)' },
+  { mark: 'underline', label: 'U', command: 'toggleUnderline', title: '밑줄 (Ctrl+U)' },
+  { mark: 'highlight', label: '✏', command: 'toggleHighlight', title: '형광펜' },
+]
+
+export function createBubble({ editor, container }) {
+  const element = document.createElement('div')
+  element.id = 'bubble'
+  element.hidden = true
+
+  for (const b of BUTTONS) {
+    const btn = document.createElement('button')
+    btn.dataset.mark = b.mark
+    btn.textContent = b.label
+    btn.title = b.title
+    btn.setAttribute('aria-pressed', 'false')
+    // mousedown을 막지 않으면 버튼을 누르는 순간 선택이 풀린다.
+    btn.addEventListener('mousedown', (e) => e.preventDefault())
+    btn.addEventListener('click', () => {
+      editor.chain().focus()[b.command]().run()
+      update()
+    })
+    element.appendChild(btn)
+  }
+  container.appendChild(element)
+
+  function update() {
+    const { from, to, empty } = editor.state.selection
+    if (empty || from === to) {
+      element.hidden = true
+      return
+    }
+    element.hidden = false
+    for (const b of BUTTONS) {
+      element
+        .querySelector(`[data-mark="${b.mark}"]`)
+        .setAttribute('aria-pressed', String(editor.isActive(b.mark)))
+    }
+    position()
+  }
+
+  function position() {
+    // jsdom에는 좌표가 없다. 실제 앱에서만 의미가 있다.
+    if (typeof editor.view.coordsAtPos !== 'function') return
+    try {
+      const { from, to } = editor.state.selection
+      const start = editor.view.coordsAtPos(from)
+      const end = editor.view.coordsAtPos(to)
+      const box = container.getBoundingClientRect()
+      const centerX = (start.left + end.left) / 2 - box.left
+      element.style.left = `${Math.max(8, centerX - element.offsetWidth / 2)}px`
+      element.style.top = `${start.top - box.top - element.offsetHeight - 8}px`
+    } catch {
+      // 좌표를 못 구하면 위치만 포기하고 팝업은 그대로 둔다.
+    }
+  }
+
+  editor.on('selectionUpdate', update)
+  editor.on('blur', () => {
+    element.hidden = true
+  })
+
+  return {
+    element,
+    update,
+    destroy() {
+      editor.off('selectionUpdate', update)
+      element.remove()
+    },
+  }
+}
+```
+
+- [ ] **Step 4: 테스트 통과 확인**
+
+Run: `npm test -- bubble`
+Expected: PASS — 6개 통과
+
+- [ ] **Step 5: 팝업 스타일 추가**
+
+`src/styles/note.css` 맨 아래:
+
+```css
+#bubble {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 5px;
+  background: #2e2e2c;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+}
+#bubble[hidden] { display: none; }
+
+#bubble button {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #f2f0ea;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+#bubble button:hover { background: rgba(255, 255, 255, 0.16); }
+#bubble button[aria-pressed='true'] { background: rgba(255, 255, 255, 0.3); }
+#bubble button[data-mark='italic'] { font-style: italic; }
+#bubble button[data-mark='bold'] { font-weight: 700; }
+#bubble button[data-mark='underline'] { text-decoration: underline; }
+```
+
+- [ ] **Step 6: `note.js`에 연결**
+
+import 구문에 추가:
+
+```js
+import { createBubble } from './editor/bubble.js'
+```
+
+`boot()` 안에서 `editor = createEditor({...})` **바로 다음** 줄에 추가:
+
+```js
+  createBubble({ editor, container: shell })
+```
+
+- [ ] **Step 7: 손으로 확인**
+
+Run: `npm run tauri dev`
+Expected: 본문에 글을 쓰고 드래그하면 검은 팝업에 `B I U ✏`가 뜬다. `✏`를 누르면 노랗게 칠해지고, 다시 드래그하면 그 버튼이 눌린 상태로 보인다. `Ctrl+B`도 동작한다.
+
+- [ ] **Step 8: 커밋**
+
+```bash
+git add -A
+git commit -m "feat: 드래그 서식 팝업 (B I U 형광펜)"
+```
+
+---
+
+### Task 8: 목록 창
+
+**Files:**
+- Create: `src/lib/preview.js`, `src/lib/preview.test.js`
+- Create: `src/lib/search.js`, `src/lib/search.test.js`
+- Create: `src/styles/list.css`
+- Modify: `src/list.html`, `src/list.js`
+
+**Interfaces:**
+- Consumes: `listNotes`, `openNoteWindow`, `deleteNote`, `createNote` (Task 6), `colorOf` (Task 4)
+- Produces:
+  - `preview.js`: `firstLine(text)`, `previewText(text, maxChars = 60)`
+  - `search.js`: `filterNotes(summaries, query)`
+
+- [ ] **Step 1: `preview`의 실패하는 테스트 작성**
+
+`src/lib/preview.test.js`:
+
+```js
+import { describe, expect, it } from 'vitest'
+import { firstLine, previewText } from './preview.js'
+
+describe('firstLine', () => {
+  it('첫 줄만 돌려준다', () => {
+    expect(firstLine('장보기\n운동\n세탁')).toBe('장보기')
+  })
+
+  it('빈 앞줄은 건너뛴다', () => {
+    expect(firstLine('\n\n실제 첫 줄')).toBe('실제 첫 줄')
+  })
+
+  it('내용이 없으면 빈 문자열이다', () => {
+    expect(firstLine('')).toBe('')
+    expect(firstLine('\n\n')).toBe('')
+    expect(firstLine(null)).toBe('')
+  })
+})
+
+describe('previewText', () => {
+  it('줄바꿈을 가운뎃점으로 잇는다', () => {
+    expect(previewText('장보기\n운동')).toBe('장보기 · 운동')
+  })
+
+  it('길면 잘라내고 말줄임을 붙인다', () => {
+    expect(previewText('가'.repeat(100), 10)).toBe(`${'가'.repeat(10)}…`)
+  })
+
+  it('짧으면 말줄임을 붙이지 않는다', () => {
+    expect(previewText('짧다', 10)).toBe('짧다')
+  })
+
+  it('빈 내용은 빈 문자열이다', () => {
+    expect(previewText('')).toBe('')
+    expect(previewText(null)).toBe('')
+  })
+})
+```
+
+- [ ] **Step 2: 테스트 실패 확인**
+
+Run: `npm test -- preview`
+Expected: FAIL — `Failed to resolve import "./preview.js"`
+
+- [ ] **Step 3: `preview.js` 구현**
+
+```js
+/** 제목이 비어 있을 때 목록 카드에 대신 보여줄 본문 첫 줄. */
+export function firstLine(text) {
+  if (!text) return ''
+  return text.split('\n').find((l) => l.trim().length > 0)?.trim() ?? ''
+}
+
+/** 목록 카드의 2줄 미리보기. 줄바꿈을 가운뎃점으로 이어 한 덩어리로 만든다. */
+export function previewText(text, maxChars = 60) {
+  if (!text) return ''
+  const flat = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join(' · ')
+  return flat.length > maxChars ? `${flat.slice(0, maxChars)}…` : flat
+}
+```
+
+- [ ] **Step 4: 테스트 통과 확인**
+
+Run: `npm test -- preview`
+Expected: PASS — 7개 통과
+
+- [ ] **Step 5: `search`의 실패하는 테스트 작성**
+
+`src/lib/search.test.js`:
+
+```js
+import { describe, expect, it } from 'vitest'
+import { filterNotes } from './search.js'
+
+const NOTES = [
+  { id: '1', title: '이번주 할일', text: '장보기\n운동' },
+  { id: '2', title: '외주 아이디어', text: '사용자가 고를 게 없어야 한다' },
+  { id: '3', title: '', text: 'Project Alpha Q3' },
+]
+
+describe('filterNotes', () => {
+  it('검색어가 비면 전부 돌려준다', () => {
+    expect(filterNotes(NOTES, '')).toHaveLength(3)
+    expect(filterNotes(NOTES, '   ')).toHaveLength(3)
+  })
+
+  it('제목에서 찾는다', () => {
+    expect(filterNotes(NOTES, '외주').map((n) => n.id)).toEqual(['2'])
+  })
+
+  it('본문에서도 찾는다', () => {
+    expect(filterNotes(NOTES, '장보기').map((n) => n.id)).toEqual(['1'])
+  })
+
+  it('대소문자를 구분하지 않는다', () => {
+    expect(filterNotes(NOTES, 'project').map((n) => n.id)).toEqual(['3'])
+    expect(filterNotes(NOTES, 'ALPHA').map((n) => n.id)).toEqual(['3'])
+  })
+
+  it('맞는 게 없으면 빈 배열이다', () => {
+    expect(filterNotes(NOTES, '존재하지않는단어')).toEqual([])
+  })
+
+  it('초성 검색은 지원하지 않는다', () => {
+    expect(filterNotes(NOTES, 'ㅇㅈ')).toEqual([])
+  })
+})
+```
+
+- [ ] **Step 6: 테스트 실패 → 구현 → 통과**
+
+Run: `npm test -- search`
+Expected: FAIL — `Failed to resolve import "./search.js"`
+
+`src/lib/search.js`:
+
+```js
+/**
+ * 대소문자를 구분하지 않는 단순 부분 일치.
+ * 초성 검색과 정규식은 의도적으로 지원하지 않는다.
+ */
+export function filterNotes(summaries, query) {
+  const q = (query ?? '').trim().toLowerCase()
+  if (!q) return summaries
+  return summaries.filter(
+    (n) =>
+      (n.title ?? '').toLowerCase().includes(q) ||
+      (n.text ?? '').toLowerCase().includes(q),
+  )
+}
+```
+
+Run: `npm test -- search`
+Expected: PASS — 6개 통과
+
+- [ ] **Step 7: `list.html` 작성**
+
+```html
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>모든 메모</title>
+  </head>
+  <body>
+    <div id="shell">
+      <div id="listbar" data-tauri-drag-region>
+        <input id="search" type="search" placeholder="검색" />
+        <button class="bar-btn" id="new-note" title="새 메모 (Ctrl+Alt+N)">+</button>
+        <button class="bar-btn" id="close" title="닫기">×</button>
+      </div>
+      <div id="cards"></div>
+      <p id="empty" hidden>메모가 없습니다.</p>
+    </div>
+    <script type="module" src="./list.js"></script>
+  </body>
+</html>
+```
+
+- [ ] **Step 8: `list.css` 작성**
+
+```css
+#shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--nfj-paper);
+  border-radius: var(--nfj-radius);
+  overflow: hidden;
+}
+
+#listbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 8px;
+  background: #ece8e0;
+  color: var(--nfj-ink);
+}
+
+#search {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 13px;
+  background: #ffffff;
+  color: var(--nfj-ink);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+#cards { flex: 1 1 auto; overflow-y: auto; }
+
+.card {
+  display: flex;
+  gap: 10px;
+  padding: 11px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+}
+.card:hover { background: rgba(0, 0, 0, 0.04); }
+
+.card-stripe { flex: 0 0 auto; width: 5px; border-radius: 3px; }
+.card-body { flex: 1 1 auto; min-width: 0; }
+
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-title.untitled { font-weight: 400; opacity: 0.55; }
+
+.card-preview {
+  margin-top: 3px;
+  font-size: var(--nfj-preview-size);
+  line-height: 1.5;
+  opacity: 0.65;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+#empty {
+  margin: 40px 0;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.5;
+}
+#empty[hidden] { display: none; }
+```
+
+`.bar-btn` 규칙은 `note.css`에 있으므로 목록 창에서도 쓰려면 `list.js`가 `note.css`를 불러오거나 규칙을 옮겨야 한다. 여기서는 **`note.css`의 `.bar-btn` 블록을 `tokens.css` 맨 아래로 옮긴다** — 두 창이 공유하는 유일한 컴포넌트이기 때문이다.
+
+- [ ] **Step 9: `list.js` 구현**
+
+```js
+import 'pretendard/dist/web/static/pretendard.css'
+import './styles/tokens.css'
+import './styles/list.css'
+
+import { getCurrentWindow } from '@tauri-apps/api/window'
+
+import { createNote, deleteNote, listNotes, openNoteWindow } from './lib/api.js'
+import { colorOf } from './lib/colors.js'
+import { firstLine, previewText } from './lib/preview.js'
+import { filterNotes } from './lib/search.js'
+
+const cards = document.getElementById('cards')
+const empty = document.getElementById('empty')
+const search = document.getElementById('search')
+
+let all = []
+
+function render() {
+  const shown = filterNotes(all, search.value)
+  cards.textContent = ''
+  empty.hidden = shown.length > 0
+
+  for (const n of shown) {
+    const card = document.createElement('div')
+    card.className = 'card'
+
+    const stripe = document.createElement('div')
+    stripe.className = 'card-stripe'
+    stripe.style.background = colorOf(n.color).bar
+
+    const body = document.createElement('div')
+    body.className = 'card-body'
+
+    const title = document.createElement('div')
+    const hasTitle = (n.title ?? '').trim().length > 0
+    title.className = hasTitle ? 'card-title' : 'card-title untitled'
+    title.textContent = hasTitle ? n.title : firstLine(n.text) || '(빈 메모)'
+
+    const preview = document.createElement('div')
+    preview.className = 'card-preview'
+    preview.textContent = previewText(n.text)
+
+    body.append(title, preview)
+    card.append(stripe, body)
+
+    card.addEventListener('click', () => openNoteWindow(n.id))
+    card.addEventListener('contextmenu', async (e) => {
+      e.preventDefault()
+      const label = hasTitle ? n.title : '제목 없는 메모'
+      if (confirm(`"${label}" 메모를 삭제할까요?\n되돌릴 수 없습니다.`)) {
+        await deleteNote(n.id)
+        await refresh()
+      }
+    })
+
+    cards.appendChild(card)
+  }
+}
+
+async function refresh() {
+  all = await listNotes()
+  render()
+}
+
+search.addEventListener('input', render)
+document.getElementById('new-note').addEventListener('click', async () => {
+  await createNote()
+  await refresh()
+})
+document.getElementById('close').addEventListener('click', () => getCurrentWindow().hide())
+
+// 창이 다시 보일 때마다 최신 상태로 맞춘다.
+getCurrentWindow().onFocusChanged(({ payload }) => {
+  if (payload) refresh()
+})
+
+refresh()
+```
+
+- [ ] **Step 10: 전체 테스트 실행**
+
+Run: `npm test`
+Expected: PASS — 33 + preview 7 + search 6 + bubble 6 = 52개 통과
+
+- [ ] **Step 11: 손으로 확인**
+
+Run: `npm run tauri dev`
+Expected: 메모 창의 `⋯` → "모든 메모 보기"로 목록 창이 열린다. 메모 카드에 색 띠와 제목이 보이고, 제목 없는 메모는 본문 첫 줄이 회색으로 보인다. 검색어를 치면 즉시 걸러지고, 카드를 우클릭하면 삭제 확인이 뜬다. 삭제하면 그 메모 창도 같이 닫힌다.
+
+- [ ] **Step 12: 커밋**
+
+```bash
+git add -A
+git commit -m "feat: 목록 창 (카드, 검색, 삭제)"
+```
+
+---
+
+### Task 9: 시스템 연동 — 자동 실행, 전역 단축키, 단일 인스턴스
+
+**Files:**
+- Modify: `src-tauri/Cargo.toml`
+- Modify: `src-tauri/src/lib.rs`
+- Modify: `src-tauri/tauri.conf.json`
+
+**Interfaces:**
+- Consumes: `commands::AppPaths`, `windows::open_list`, `commands::create_note` 경로
+- Produces: 앱 수준 동작 — 윈도우 시작 시 자동 실행, `Ctrl+Alt+N`, 두 번째 실행 시 기존 앱의 목록 창 띄우기
+
+- [ ] **Step 1: 플러그인 의존성 추가**
+
+`src-tauri/Cargo.toml`의 `[dependencies]`에 추가:
+
+```toml
+tauri-plugin-autostart = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-single-instance = "2"
+```
+
+Run: `cd src-tauri && cargo build`
+Expected: 세 크레이트가 받아지고 빌드가 통과한다.
+
+- [ ] **Step 2: 새 메모 생성 로직을 재사용 가능하게 분리**
+
+`src-tauri/src/commands.rs`의 `create_note`는 `State<AppPaths>`를 받아 단축키 핸들러에서 부르기 어렵다. `AppHandle`만으로 동작하는 함수를 하나 두고 명령이 그것을 부르게 바꾼다.
+
+`commands.rs`의 `create_note`를 아래로 교체한다:
+
+```rust
+/// 단축키 핸들러처럼 State를 쓸 수 없는 곳에서도 부를 수 있도록 AppHandle만 받는다.
+pub fn create_note_with(app: &AppHandle) -> Result<String, String> {
+    let notes = {
+        let paths = app.state::<AppPaths>();
+        paths.notes.clone()
+    };
+    let mut note = new_note(&notes);
+
+    let last = app
+        .webview_windows()
+        .values()
+        .filter_map(|w| w.outer_position().ok())
+        .map(|p| (p.x, p.y))
+        .max_by_key(|(x, y)| x + y);
+    let screen = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|m| (m.size().width as i32, m.size().height as i32))
+        .unwrap_or((1920, 1080));
+    let (x, y) = windows::next_position(last, screen, (note.window.width, note.window.height));
+    note.window.x = x;
+    note.window.y = y;
+
+    storage::save(&notes, &note).map_err(|e| e.to_string())?;
+    windows::open_note(app, &note).map_err(|e| e.to_string())?;
+    Ok(note.id)
+}
+
+#[tauri::command]
+pub fn create_note(app: AppHandle) -> Result<String, String> {
+    create_note_with(&app)
+}
+```
+
+`use tauri::{AppHandle, Manager, State};`로 import에 `Manager`를 추가한다.
+
+- [ ] **Step 3: 테스트로 회귀 확인**
+
+Run: `cd src-tauri && cargo test`
+Expected: PASS — 기존 24개 전부 통과 (windows 5 + storage 8 + html 6 + note 2 + commands 3)
+
+- [ ] **Step 4: `lib.rs`에 플러그인 등록**
+
+`src-tauri/src/lib.rs`의 `run()`을 아래로 교체한다:
+
+```rust
+pub fn run() {
+    tauri::Builder::default()
+        // 두 번째 실행은 새 앱을 띄우지 않고 이미 떠 있는 앱의 목록 창을 보여준다.
+        // 작업표시줄 아이콘을 눌렀을 때 기대하는 동작이다.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            let _ = windows::open_list(app);
+        }))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .setup(|app| {
+            let base = app
+                .path()
+                .data_dir()
+                .expect("데이터 폴더를 찾을 수 없습니다")
+                .join("NoteforJun");
+            let notes = storage::notes_dir(&base);
+            std::fs::create_dir_all(&notes)?;
+            app.manage(AppPaths { notes: notes.clone() });
+
+            register_shortcut(app.handle())?;
+            enable_autostart(app.handle());
+
+            windows::restore_all(app.handle(), &notes)?;
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::list_notes,
+            commands::load_note,
+            commands::save_note,
+            commands::create_note,
+            commands::delete_note,
+            commands::open_note_window,
+            commands::hide_note_window,
+            commands::open_list_window,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running NoteforJun");
+}
+
+fn register_shortcut(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
+
+    let hotkey = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyN);
+    let handle = app.clone();
+    app.plugin(
+        tauri_plugin_global_shortcut::Builder::new()
+            .with_handler(move |_app, sc, event| {
+                if sc == &hotkey && event.state() == ShortcutState::Pressed {
+                    let _ = commands::create_note_with(&handle);
+                }
+            })
+            .build(),
+    )?;
+    app.global_shortcut().register(hotkey)?;
+    Ok(())
+}
+
+fn enable_autostart(app: &tauri::AppHandle) {
+    use tauri_plugin_autostart::ManagerExt;
+    let manager = app.autolaunch();
+    if manager.is_enabled().unwrap_or(false) {
+        return;
+    }
+    // 설정 화면이 없으므로 설치 즉시 켠다. 끄고 싶으면 윈도우 시작 프로그램에서 끈다.
+    let _ = manager.enable();
+}
+```
+
+`lib.rs` 맨 위 import를 아래로 맞춘다:
+
+```rust
+use tauri::Manager;
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+use crate::commands::AppPaths;
+```
+
+`register_shortcut`에서 플러그인을 다시 등록하므로 `run()`의 체인에 있던 `.plugin(tauri_plugin_global_shortcut::Builder::new().build())` 한 줄은 **지운다**. 핸들러가 붙은 쪽만 남겨야 한다.
+
+- [ ] **Step 5: 실행 확인**
+
+Run: `npm run tauri dev`
+Expected:
+- 앱이 뜬 상태에서 `Ctrl+Alt+N`을 누르면 새 메모 창이 마지막 창에서 오른쪽 아래로 비껴 뜬다
+- 창을 하나도 안 띄운 상태에서 앱을 한 번 더 실행하면 새 창이 아니라 목록 창이 뜬다
+
+- [ ] **Step 6: 자동 실행 등록 확인**
+
+Run: `npm run tauri dev` 후 PowerShell에서:
+
+```powershell
+Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' | Select-Object -Property *NoteforJun*
+```
+
+Expected: NoteforJun 항목이 보인다. 개발 모드에서는 개발 실행 파일 경로가 등록되므로, 배포 빌드 후 다시 확인하는 것이 정확하다.
+
+- [ ] **Step 7: 커밋**
+
+```bash
+git add -A
+git commit -m "feat: 자동 실행, 전역 단축키, 단일 인스턴스"
+```
+
+- [ ] **Step 8: (선택) 작업표시줄 점프 목록**
+
+설계 문서 §11.4에 따라 **여기까지만 하고 넘어가도 된다.** 점프 목록은 윈도우 COM(`ICustomDestinationList`)을 직접 호출해야 해서 `unsafe` 코드가 상당량 필요하다. 시도해서 한 번에 되지 않으면 생략하고, 아래 두 경로가 이미 같은 일을 한다는 것을 확인한 뒤 넘어간다:
+
+- 작업표시줄 아이콘 클릭 → 목록 창 (Step 4의 single-instance가 처리)
+- `Ctrl+Alt+N` → 새 메모
+
+생략하기로 했다면 설계 문서 §11.4의 해당 문단 아래에 한 줄 덧붙인다: `구현 결과: 생략함. 아이콘 클릭 → 목록 창으로 대체.`
+
+---
+
+### Task 10: 완성 기준 검증과 배포 빌드
+
+**Files:**
+- Create: `docs/superpowers/plans/2026-09-11-noteforjun-checklist.md`
+- Modify: 검증 중 발견된 문제에 해당하는 파일
+
+**Interfaces:**
+- Consumes: Task 1~9 전부
+- Produces: 설계 문서 §12의 완성 기준 20개에 대한 통과 기록, 그리고 설치 가능한 `.msi`
+
+- [ ] **Step 1: 자동 테스트 전체 실행**
+
+Run: `npm test`
+Expected: PASS — 52개
+
+Run: `cd src-tauri && cargo test`
+Expected: PASS — 24개
+
+- [ ] **Step 2: 배포 빌드**
+
+Run: `npm run tauri build`
+Expected: `src-tauri/target/release/bundle/msi/` 아래에 `.msi`가 생긴다. 설치해서 그 앱으로 이후 항목을 확인한다.
+
+- [ ] **Step 3: 체크리스트 문서 작성**
+
+`docs/superpowers/plans/2026-09-11-noteforjun-checklist.md`에 아래를 그대로 쓰고, 항목마다 직접 확인하며 채운다.
+
+```markdown
+# NoteforJun 완성 기준 확인
+
+설계 문서 `docs/superpowers/specs/2026-09-11-noteforjun-design.md` §12 기준.
+확인 날짜: ____  /  빌드: ____
+
+## 서식
+- [ ] 1. `# ` + 띄어쓰기로 큰 글씨가 되고 `#` 기호가 남지 않는다
+- [ ] 2. `- `와 `[] `가 각각 체크박스로 변환된다
+- [ ] 3. 체크박스 클릭 시 취소선과 흐림이 적용되고 위치는 바뀌지 않는다
+- [ ] 4. 체크박스에서 Enter → 다음 체크박스 / 빈 체크박스에서 Enter → 목록 탈출
+- [ ] 5. 드래그 시 `B I U ✏` 팝업이 뜨고 네 버튼이 적용·해제된다
+- [ ] 6. `Ctrl+B` / `Ctrl+I` / `Ctrl+U`가 동작한다
+- [ ] 7. 이미 서식이 적용된 부분을 선택하면 해당 버튼이 눌린 상태로 보인다
+- [ ] (추가) `## `를 쳐도 아무 일이 일어나지 않는다
+
+## 한글 입력 — 자동화 불가, 반드시 손으로 확인
+- [ ] 8. `ㅎ` → `하` → `한`처럼 조합하는 도중 서식이 깨지거나 커서가 튀지 않는다
+- [ ] 9. 한글 조합 중 자동 저장이 일어나도 글자가 유실되지 않는다
+      확인법: 한 글자를 조합하다 멈추고 1초 기다린 뒤 이어서 친다
+- [ ] (추가) 체크박스 항목 안에서 한글을 쳐도 동일하게 동작한다
+- [ ] (추가) 제목 칸에서 한글을 조합해 20자를 채워도 21번째가 들어가지 않는다
+
+## 저장과 복원
+- [ ] 10. 메모를 쓰는 도중 작업 관리자로 강제 종료해도 0.5초 이전까지 쓴 글이 남아 있다
+- [ ] 11. `%APPDATA%\NoteforJun\notes\`의 JSON 하나를 메모장으로 열어 망가뜨려도 다른 메모는 정상적으로 열린다
+- [ ] 12. 재부팅 후 열려 있던 메모가 같은 자리, 같은 크기로 복원된다
+- [ ] 13. `×`로 닫은 메모가 목록 창에 남아 있고, 클릭하면 다시 열린다
+
+## 제목과 목록
+- [ ] 14. 제목에 21번째 글자가 입력되지 않는다
+- [ ] 15. 메모 창에서 잘린 제목이 목록 창에서는 전부 보인다
+      확인법: `6월 일본여행 계획(오사카)` (15자)를 넣고 창을 220px까지 줄인다
+- [ ] 16. 제목이 빈 메모는 목록에서 본문 첫 줄이 회색으로 표시된다
+- [ ] 17. 검색어를 입력하면 제목과 본문 양쪽에서 걸러진다
+- [ ] (추가) 목록 창을 360px 아래로 줄일 수 없다
+
+## 성능과 철학
+- [ ] 18. 메모 20개를 띄웠을 때 메모리 사용량이 250MB 아래
+      확인법: 작업 관리자 → 세부 정보 → NoteforJun 관련 프로세스 메모리 합계
+- [ ] 19. 새 메모 창이 뜨기까지 0.5초 이내
+- [ ] 20. 설정 화면이 없다. 조절 가능한 것은 색 6가지와 창 크기·위치뿐이다
+
+## 시스템 연동
+- [ ] `Ctrl+Alt+N`으로 새 메모가 뜬다
+- [ ] 작업표시줄에 고정한 아이콘을 누르면 목록 창이 뜬다
+- [ ] 윈도우 재시작 후 앱이 자동으로 실행된다
+
+## 발견된 문제
+(없으면 "없음")
+```
+
+- [ ] **Step 4: 메모리 측정**
+
+메모 20개를 띄우고 작업 관리자에서 NoteforJun 관련 프로세스 메모리를 합산한다. 250MB를 넘으면 원인을 기록한다. WebView2 프로세스는 여러 개로 나뉘어 보이므로 전부 더해야 한다.
+
+- [ ] **Step 5: 발견된 문제 수정**
+
+체크리스트에서 실패한 항목이 있으면 각각을 별도 커밋으로 고친다. 고칠 때마다 `npm test`와 `cargo test`를 다시 돌린다.
+
+- [ ] **Step 6: 커밋**
+
+```bash
+git add -A
+git commit -m "docs: 완성 기준 확인 결과"
+```
+
+---
+
+## Self-Review
+
+**1. 설계 문서 커버리지**
+
+| 설계 문서 절 | 담당 태스크 |
+|---|---|
+| §4.1 메모 창 (상단바, 4요소) | Task 4, 6 |
+| §4.2 목록 창 (검색, 카드, 정렬, 삭제) | Task 8 |
+| §5.1 타이핑 서식 (`# `, `- `, `[] `) | Task 5 |
+| §5.2 선택 서식 (B I U 형광펜) | Task 5, 7 |
+| §6 색 6종, 기본 노랑 | Task 4, 6 |
+| §7 타이포그래피, 폰트 포함 | Task 4 |
+| §8 제목 20자, 말줄임, 빈 제목 | Task 6, 8 |
+| §9 창 동작, 새 메모 3경로, 캐스케이드 | Task 3, 9 |
+| §10 저장 위치·형식·원자성·디바운스 | Task 2, 3, 6 |
+| §11 기술 구조, Rust 4역할, 명령 8종 | Task 1, 2, 3, 9 |
+| §12 완성 기준 20개 | Task 10 |
+
+빠진 항목 없음.
+
+**2. 설계 문서와 달라진 점 (의도적)**
+
+- §11.5의 `list_notes`는 "요약 목록"이라고만 적혀 있었다. 검색이 본문 전체를 훑어야 하므로 `NoteSummary`에 본문 전체의 순수 텍스트인 `text` 필드를 넣었다. 미리보기는 이 `text`에서 프론트엔드가 잘라 쓴다.
+- §11.5에 없던 `close_note`를 `windows.rs`에 추가했다. 메모를 삭제할 때 열려 있는 창을 닫아야 하는데 `hide`로는 부족하다.
+
+**3. 타입·이름 일관성 확인**
+
+- Rust: `storage::{notes_dir, save, load, list, delete}` / `html::strip_html` / `windows::{next_position, note_label, LIST_LABEL, open_note, hide_note, close_note, open_list, restore_all}` / `commands::{AppPaths, new_note, create_note_with, 명령 8종}` — 전 태스크에서 동일하게 사용됨
+- JS: `api.js`의 8개 함수명이 Rust 명령의 camelCase 대응과 일치. `colorOf`, `COLORS`, `DEFAULT_COLOR`, `clampTitle`, `TITLE_MAX`, `firstLine`, `previewText`, `filterNotes`, `debounce`, `createEditor`, `buildExtensions`, `createBubble`, `TASK_INPUT_RULE` — 정의된 태스크와 사용하는 태스크의 철자가 일치
+- `NoteSummary`의 JSON 키는 `serde(rename_all = "camelCase")`로 `updatedAt`이 되고, `search.js`/`list.js`는 `n.title`, `n.text`, `n.color`, `n.id`만 읽으므로 충돌 없음
+- `.bar-btn` 규칙이 `note.css`에 있는데 `list.html`도 쓰므로 Task 8 Step 8에서 `tokens.css`로 옮기도록 명시함
