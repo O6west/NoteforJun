@@ -10,15 +10,7 @@
     "beforeBuildCommand": "npm run build"
   },
   "app": {
-    "windows": [
-      {
-        "label": "bootstrap",
-        "url": "note.html",
-        "title": "NoteforJun",
-        "width": 300,
-        "height": 300
-      }
-    ],
+    "windows": [],
     "security": { "csp": null }
   },
   "bundle": {
