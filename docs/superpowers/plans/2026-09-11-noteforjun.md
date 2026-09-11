@@ -1185,8 +1185,10 @@ pub fn run() {
             let notes = storage::notes_dir(&base);
             std::fs::create_dir_all(&notes)?;
 
+            // 순서가 중요하다. restore_all이 만드는 메모 창은 뜨자마자
+            // load_note를 부르는데, 그때 AppPaths가 등록돼 있어야 한다.
+            app.manage(AppPaths { notes: notes.clone() });
             windows::restore_all(app.handle(), &notes)?;
-            app.manage(AppPaths { notes });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1675,23 +1677,19 @@ export function createEditor({ element, content = '', onUpdate = () => {} }) {
 }
 ```
 
-- [ ] **Step 7: 에디터 동작의 실패하는 테스트 작성**
+- [ ] **Step 7: 타이핑 흉내 헬퍼 작성**
 
-`src/editor/editor.test.js`:
+입력 규칙은 실제 타이핑에만 반응하므로 테스트에서 한 글자씩 흘려보내야 한다. Task 7의 팝업 테스트도 같은 헬퍼를 쓰므로 처음부터 공용 파일에 둔다.
+
+`test/helpers.js`:
 
 ```js
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createEditor } from './editor.js'
-
-let editor
-let element
-
 /**
- * 입력 규칙은 실제 타이핑(handleTextInput)에만 반응한다.
+ * 입력 규칙(`# `, `- `)은 handleTextInput을 거치는 실제 타이핑에만 반응한다.
  * insertContent로는 발동하지 않으므로 ProseMirror에 한 글자씩 직접 흘려보낸다.
  */
-function typeText(ed, text) {
-  const { view } = ed
+export function typeText(editor, text) {
+  const { view } = editor
   for (const ch of text) {
     const { from, to } = view.state.selection
     const handled = view.someProp('handleTextInput', (f) => f(view, from, to, ch))
@@ -1700,6 +1698,19 @@ function typeText(ed, text) {
     }
   }
 }
+```
+
+- [ ] **Step 8: 에디터 동작의 실패하는 테스트 작성**
+
+`src/editor/editor.test.js`:
+
+```js
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { typeText } from '../../test/helpers.js'
+import { createEditor } from './editor.js'
+
+let editor
+let element
 
 beforeEach(() => {
   element = document.createElement('div')
@@ -1797,17 +1808,17 @@ describe('지원하지 않는 서식', () => {
 })
 ```
 
-- [ ] **Step 8: 테스트 실행**
+- [ ] **Step 9: 테스트 실행**
 
 Run: `npm test -- editor`
-Expected: PASS — 13개 통과
+Expected: PASS — 12개 통과
 
 만약 `Range`나 `getClientRects` 관련 오류가 난다면 `test/setup.js`(Task 4 Step 1)가 제대로 로드되는지 확인한다. 특정 테스트가 jsdom 한계로 끝내 돌지 않으면 **테스트를 약화시키지 말고** 해당 항목을 Task 10 수동 체크리스트로 옮기고 그 사유를 주석으로 남긴다.
 
-- [ ] **Step 9: 커밋**
+- [ ] **Step 10: 커밋**
 
 ```bash
-git add src/editor test/setup.js vitest.config.js
+git add src/editor test/helpers.js test/setup.js vitest.config.js
 git commit -m "feat: Tiptap 편집기와 입력 규칙 (# / - / [])"
 ```
 
@@ -2193,7 +2204,7 @@ boot()
 - [ ] **Step 13: 전체 테스트 실행**
 
 Run: `npm test`
-Expected: PASS — colors 4 + rules 5 + editor 13 + debounce 5 + title 6 = 33개 통과
+Expected: PASS — colors 4 + rules 5 + editor 12 + debounce 5 + title 6 = 32개 통과
 
 - [ ] **Step 14: 손으로 확인**
 
@@ -2231,22 +2242,14 @@ git commit -m "feat: 메모 창 조립 (제목 20자, 자동 저장, 색 메뉴)
 
 ```js
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createEditor } from './editor.js'
+import { typeText } from '../../test/helpers.js'
 import { createBubble } from './bubble.js'
+import { createEditor } from './editor.js'
 
 let editor
 let element
 let container
 let bubble
-
-function typeText(ed, text) {
-  const { view } = ed
-  for (const ch of text) {
-    const { from, to } = view.state.selection
-    const handled = view.someProp('handleTextInput', (f) => f(view, from, to, ch))
-    if (!handled) view.dispatch(view.state.tr.insertText(ch, from, to))
-  }
-}
 
 beforeEach(() => {
   container = document.createElement('div')
@@ -2474,6 +2477,7 @@ git commit -m "feat: 드래그 서식 팝업 (B I U 형광펜)"
 - Create: `src/lib/search.js`, `src/lib/search.test.js`
 - Create: `src/styles/list.css`
 - Modify: `src/list.html`, `src/list.js`
+- Modify: `src/styles/note.css`, `src/styles/tokens.css` (`.bar-btn` 규칙을 공용 위치로 이동 — Step 8 참고)
 
 **Interfaces:**
 - Consumes: `listNotes`, `openNoteWindow`, `deleteNote`, `createNote` (Task 6), `colorOf` (Task 4)
@@ -2815,7 +2819,7 @@ refresh()
 - [ ] **Step 10: 전체 테스트 실행**
 
 Run: `npm test`
-Expected: PASS — 33 + preview 7 + search 6 + bubble 6 = 52개 통과
+Expected: PASS — 32 + bubble 6 + preview 7 + search 6 = 51개 통과
 
 - [ ] **Step 11: 손으로 확인**
 
@@ -2991,6 +2995,34 @@ use crate::commands::AppPaths;
 
 `register_shortcut`에서 플러그인을 다시 등록하므로 `run()`의 체인에 있던 `.plugin(tauri_plugin_global_shortcut::Builder::new().build())` 한 줄은 **지운다**. 핸들러가 붙은 쪽만 남겨야 한다.
 
+**이 단계는 컴파일이 한 번에 통과하지 않을 수 있다.** 전역 단축키 플러그인은 핸들러를 빌더에 붙여야 하는데 핸들러가 `AppHandle`을 필요로 해서 순환이 생긴다. 위 코드는 `setup` 안에서 플러그인을 등록하는 방식으로 이를 푼다. `AppHandle::plugin` 시그니처가 맞지 않거나 소유권 오류가 나면, 아래 대안으로 바꾼다 — 동작은 같다.
+
+대안: `run()` 체인에서 핸들러까지 한 번에 붙이고, 핸들러 안에서 이벤트로 전달받은 `app` 인자를 쓴다.
+
+```rust
+.plugin(
+    tauri_plugin_global_shortcut::Builder::new()
+        .with_handler(|app, sc, event| {
+            use tauri_plugin_global_shortcut::{Code, Modifiers, ShortcutState};
+            let is_hotkey = sc.mods == Modifiers::CONTROL | Modifiers::ALT && sc.key == Code::KeyN;
+            if is_hotkey && event.state() == ShortcutState::Pressed {
+                let _ = commands::create_note_with(app);
+            }
+        })
+        .build(),
+)
+```
+
+이 경우 `setup` 안에서는 등록만 한다:
+
+```rust
+use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
+app.global_shortcut()
+    .register(Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyN))?;
+```
+
+둘 중 컴파일되는 쪽을 쓰고, 어느 쪽을 썼는지 보고서에 적는다.
+
 - [ ] **Step 5: 실행 확인**
 
 Run: `npm run tauri dev`
@@ -3039,7 +3071,7 @@ git commit -m "feat: 자동 실행, 전역 단축키, 단일 인스턴스"
 - [ ] **Step 1: 자동 테스트 전체 실행**
 
 Run: `npm test`
-Expected: PASS — 52개
+Expected: PASS — 51개
 
 Run: `cd src-tauri && cargo test`
 Expected: PASS — 24개
