@@ -182,3 +182,32 @@
   cursor: pointer;
 }
 .menu-item:hover { background: rgba(0, 0, 0, 0.06); }
+
+#bubble {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 5px;
+  background: #2e2e2c;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+}
+#bubble[hidden] { display: none; }
+
+#bubble button {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #f2f0ea;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+#bubble button:hover { background: rgba(255, 255, 255, 0.16); }
+#bubble button[aria-pressed='true'] { background: rgba(255, 255, 255, 0.3); }
+#bubble button[data-mark='italic'] { font-style: italic; }
+#bubble button[data-mark='bold'] { font-weight: 700; }
+#bubble button[data-mark='underline'] { text-decoration: underline; }

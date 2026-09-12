@@ -4,6 +4,7 @@ import './styles/note.css'
 
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
+import { createBubble } from './editor/bubble.js'
 import { createEditor } from './editor/editor.js'
 import {
   createNote,
@@ -166,6 +167,7 @@ async function boot() {
       saver.call()
     },
   })
+  createBubble({ editor, container: shell })
 
   document.getElementById('new-note').addEventListener('click', () => createNote())
   document.getElementById('open-list').addEventListener('click', () => {
