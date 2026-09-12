@@ -14,7 +14,7 @@ import {
   openListWindow,
   saveNote,
 } from './lib/api.js'
-import { COLORS, DEFAULT_COLOR } from './lib/colors.js'
+import { COLORS, DEFAULT_COLOR, colorOf } from './lib/colors.js'
 import { debounce } from './lib/debounce.js'
 import { installResizeZones } from './lib/resize.js'
 import { serialize } from './lib/serialize.js'
@@ -112,7 +112,9 @@ document.getElementById('close').addEventListener('click', async () => {
 })
 
 function applyColor(key) {
-  shell.dataset.color = key
+  // 저장된 색이 알 수 없는 값이면 노랑으로 되돌린다.
+  // 그냥 넣으면 --nfj-bar가 안 풀려서 상단바 배경이 통째로 사라진다.
+  shell.dataset.color = colorOf(key).key
   for (const btn of swatches.children) {
     btn.setAttribute('aria-pressed', String(btn.dataset.key === key))
   }
@@ -170,10 +172,12 @@ async function boot() {
   })
   createBubble({ editor, container: shell })
 
-  document.getElementById('new-note').addEventListener('click', () => createNote())
+  document.getElementById('new-note').addEventListener('click', () =>
+    createNote().catch((err) => showSaveError(err)),
+  )
   document.getElementById('open-list').addEventListener('click', () => {
     menu.hidden = true
-    openListWindow()
+    openListWindow().catch((err) => showSaveError(err))
   })
   document.getElementById('menu-btn').addEventListener('click', (e) => {
     e.stopPropagation()
@@ -184,11 +188,24 @@ async function boot() {
   })
 
   // 창 위치·크기는 이동이 끝난 시점에만 저장한다.
+  //
+  // 반드시 논리 픽셀로 바꿔서 저장한다. outerPosition/innerSize는 물리 픽셀을
+  // 주는데 창을 만들 때 쓰는 좌표는 논리 픽셀이라, 그대로 저장하면 화면 배율이
+  // 125%·150%인 환경에서 다시 열 때마다 창이 그 배율만큼 커지고 멀어진다.
+  // 두세 번이면 화면 밖으로 나가고, 제목 표시줄이 없어 되돌릴 방법이 없다.
+  // 정수로 반올림하는 것도 필수다. WindowState는 정수 필드라 소수가 가면 저장이 깨진다.
   const win = getCurrentWindow()
   remember = debounce(async () => {
-    const pos = await win.outerPosition()
-    const size = await win.innerSize()
-    note.window = { x: pos.x, y: pos.y, width: size.width, height: size.height, visible: true }
+    const scale = await win.scaleFactor()
+    const pos = (await win.outerPosition()).toLogical(scale)
+    const size = (await win.innerSize()).toLogical(scale)
+    note.window = {
+      x: Math.round(pos.x),
+      y: Math.round(pos.y),
+      width: Math.round(size.width),
+      height: Math.round(size.height),
+      visible: true,
+    }
     return persist()
   }, SAVE_DELAY)
   await win.onMoved(() => remember.call())

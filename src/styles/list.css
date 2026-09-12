@@ -44,7 +44,8 @@
 }
 .card:hover { background: rgba(0, 0, 0, 0.04); }
 
-.card-stripe { flex: 0 0 auto; width: 5px; border-radius: 3px; }
+/* align-self가 없으면 .card의 align-items: flex-start 때문에 높이 0이 되어 안 보인다 */
+.card-stripe { flex: 0 0 auto; align-self: stretch; width: 5px; border-radius: 3px; }
 .card-body { flex: 1 1 auto; min-width: 0; }
 
 .card-title {

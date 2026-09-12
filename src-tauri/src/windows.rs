@@ -184,7 +184,7 @@ fn apply(
 ) -> tauri::Result<()> {
     match plan {
         Startup::NewNote => {
-            let mut note = crate::commands::new_note(notes_dir);
+            let mut note = crate::commands::new_note();
             let screen = primary_screen_logical(app);
             let (x, y) = next_position(None, screen, (note.window.width, note.window.height));
             note.window.x = x;
@@ -210,8 +210,8 @@ fn apply(
     }
 }
 
-/// 제목도 본문도 비어 있는 메모. 다시 내밀어도 사용자가 잃을 것이 없다.
-fn is_blank(note: &Note) -> bool {
+/// 제목도 본문도 비어 있는 메모. 다시 내밀어도, 지워도 사용자가 잃을 것이 없다.
+pub fn is_blank(note: &Note) -> bool {
     note.title.trim().is_empty() && crate::html::strip_html(&note.content).trim().is_empty()
 }
 

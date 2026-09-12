@@ -43,7 +43,7 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 }
 
 /// 새 메모 한 건. 기본색은 항상 노랑이다.
-pub fn new_note(_notes_dir: &PathBuf) -> Note {
+pub fn new_note() -> Note {
     let ts = now_iso();
     Note {
         id: Uuid::new_v4().to_string(),
@@ -79,7 +79,7 @@ pub fn create_note_with(app: &AppHandle) -> Result<String, String> {
         let paths = app.state::<AppPaths>();
         paths.notes.clone()
     };
-    let mut note = new_note(&notes);
+    let mut note = new_note();
 
     // 좌표 단위를 섞지 않도록 windows.rs의 헬퍼를 쓴다 (논리 픽셀).
     let last = windows::last_window_position(app);
@@ -114,10 +114,26 @@ pub fn open_note_window(id: String, app: AppHandle, paths: State<AppPaths>) -> R
 
 #[tauri::command]
 pub fn hide_note_window(id: String, app: AppHandle, paths: State<AppPaths>) -> Result<(), String> {
-    let mut note = storage::load(&paths.notes, &id).map_err(|e| e.to_string())?;
+    // 파일을 못 읽어도 창은 닫혀야 한다. 메모 창에는 OS 테두리가 없어서
+    // × 가 안 먹으면 그 창을 없앨 방법이 아예 없다. 기록을 고치는 것은
+    // 읽을 수 있을 때만 하는 부수적인 일로 둔다.
+    let Ok(note) = storage::load(&paths.notes, &id) else {
+        return windows::hide_note(&app, &id).map_err(|e| e.to_string());
+    };
+
+    // 아무것도 안 쓴 메모는 닫을 때 아예 지운다. 보관할 내용이 없고, 남겨두면
+    // 목록에 (빈 메모)로 계속 남는다. 메모 창에는 삭제가 없으므로 한번 생기면
+    // 목록까지 가야 없앨 수 있어 더 성가시다.
+    if windows::is_blank(&note) {
+        windows::close_note(&app, &id).map_err(|e| e.to_string())?;
+        return storage::delete(&paths.notes, &id).map_err(|e| e.to_string());
+    }
+
+    let mut note = note;
     note.window.visible = false;
-    storage::save(&paths.notes, &note).map_err(|e| e.to_string())?;
-    windows::hide_note(&app, &id).map_err(|e| e.to_string())
+    let saved = storage::save(&paths.notes, &note);
+    windows::hide_note(&app, &id).map_err(|e| e.to_string())?;
+    saved.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -131,7 +147,7 @@ mod tests {
 
     #[test]
     fn new_note_defaults_to_yellow_and_empty() {
-        let n = new_note(&PathBuf::from("."));
+        let n = new_note();
         assert_eq!(n.color, "yellow");
         assert!(n.title.is_empty());
         assert!(n.content.is_empty());

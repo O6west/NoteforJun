@@ -34,6 +34,9 @@ function clearError() {
 function render() {
   const shown = filterNotes(all, search.value)
   cards.textContent = ''
+  // '메모가 없다'와 '검색에 안 걸린다'는 다른 말이다. 같은 문구를 쓰면
+  // 검색하다가 메모가 전부 사라진 줄 안다.
+  empty.textContent = search.value.trim() ? '찾는 메모가 없습니다.' : '메모가 없습니다.'
   empty.hidden = shown.length > 0
 
   for (const n of shown) {
