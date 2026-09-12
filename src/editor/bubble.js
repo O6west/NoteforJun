@@ -14,12 +14,17 @@ export function createBubble({ editor, container }) {
   const element = document.createElement('div')
   element.id = 'bubble'
   element.hidden = true
+  element.setAttribute('role', 'toolbar')
+  element.setAttribute('aria-label', '서식')
 
   for (const b of BUTTONS) {
     const btn = document.createElement('button')
+    btn.type = 'button'
     btn.dataset.mark = b.mark
     btn.textContent = b.label
     btn.title = b.title
+    // 글자만으로는 뜻이 안 통한다. 특히 ✏는 낭독기가 "연필"이라고만 읽는다.
+    btn.setAttribute('aria-label', b.title)
     btn.setAttribute('aria-pressed', 'false')
     // mousedown을 막지 않으면 버튼을 누르는 순간 선택이 풀린다.
     btn.addEventListener('mousedown', (e) => e.preventDefault())
@@ -72,10 +77,29 @@ export function createBubble({ editor, container }) {
     }
   }
 
+  /**
+   * 본문에서 초점이 떠나면 팝업을 감춘다.
+   *
+   * 단, 초점이 팝업 버튼으로 옮겨가는 중이면 감추지 않는다. 본문에서 Tab을 누르면
+   * 바로 이 팝업으로 오는데, 그때 감춰버리면 키보드로는 형광펜에 영영 닿을 수 없다.
+   * blur는 새 요소가 초점을 받기 전에 먼저 오므로 한 박자 뒤에 확인한다.
+   */
   const hide = () => {
-    element.hidden = true
+    setTimeout(() => {
+      if (element.contains(document.activeElement)) return
+      element.hidden = true
+    }, 0)
   }
 
+  /** Esc로 빠져나간다. 이 길이 없으면 팝업에 들어갔다 나오는 방법이 Shift+Tab뿐이다. */
+  const onKeyDown = (e) => {
+    if (e.key !== 'Escape') return
+    e.preventDefault()
+    element.hidden = true
+    editor.commands.focus()
+  }
+
+  element.addEventListener('keydown', onKeyDown)
   editor.on('selectionUpdate', update)
   editor.on('blur', hide)
 
@@ -83,6 +107,7 @@ export function createBubble({ editor, container }) {
     element,
     update,
     destroy() {
+      element.removeEventListener('keydown', onKeyDown)
       editor.off('selectionUpdate', update)
       editor.off('blur', hide)
       element.remove()

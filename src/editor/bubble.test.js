@@ -83,3 +83,50 @@ describe('드래그 팝업', () => {
     }
   })
 })
+
+describe('키보드로 쓰기', () => {
+  beforeEach(() => {
+    typeText(editor, '중요한 부분')
+    editor.commands.selectAll()
+    bubble.update()
+  })
+
+  it('버튼이 Tab으로 닿을 수 있는 진짜 버튼이다', () => {
+    for (const btn of bubble.element.querySelectorAll('button')) {
+      expect(btn.tagName).toBe('BUTTON')
+      expect(btn.disabled).toBe(false)
+      // tabindex를 -1로 박아두면 Tab 순서에서 빠진다
+      expect(btn.getAttribute('tabindex')).toBeNull()
+    }
+  })
+
+  it('버튼마다 읽을 수 있는 이름이 있다', () => {
+    const names = [...bubble.element.querySelectorAll('button')].map((b) =>
+      b.getAttribute('aria-label'),
+    )
+    expect(names).toEqual(['굵게 (Ctrl+B)', '기울임 (Ctrl+I)', '밑줄 (Ctrl+U)', '형광펜'])
+  })
+
+  it('팝업 버튼으로 초점이 옮겨가는 중에는 사라지지 않는다', async () => {
+    bubble.element.querySelector('[data-mark="bold"]').focus()
+    editor.emit('blur', { editor, event: new FocusEvent('blur') })
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(bubble.element.hidden).toBe(false)
+  })
+
+  it('초점이 팝업 밖으로 나가면 사라진다', async () => {
+    editor.emit('blur', { editor, event: new FocusEvent('blur') })
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(bubble.element.hidden).toBe(true)
+  })
+
+  it('Esc를 누르면 팝업이 닫힌다', () => {
+    const btn = bubble.element.querySelector('[data-mark="highlight"]')
+    btn.focus()
+    btn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+
+    expect(bubble.element.hidden).toBe(true)
+  })
+})

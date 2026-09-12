@@ -1485,7 +1485,7 @@ Expected: PASS — 4개 통과
   --nfj-font: 'Pretendard', 'Malgun Gothic', sans-serif;
 
   --nfj-body-size: 14px;
-  --nfj-body-line: 1.72;
+  --nfj-body-line: 1.6;
   --nfj-h1-size: 19px;
   --nfj-title-size: 14px;
   --nfj-preview-size: 12px;
@@ -2983,12 +2983,17 @@ export function createBubble({ editor, container }) {
   const element = document.createElement('div')
   element.id = 'bubble'
   element.hidden = true
+  element.setAttribute('role', 'toolbar')
+  element.setAttribute('aria-label', '서식')
 
   for (const b of BUTTONS) {
     const btn = document.createElement('button')
+    btn.type = 'button'
     btn.dataset.mark = b.mark
     btn.textContent = b.label
     btn.title = b.title
+    // 글자만으로는 뜻이 안 통한다. 특히 ✏는 낭독기가 "연필"이라고만 읽는다.
+    btn.setAttribute('aria-label', b.title)
     btn.setAttribute('aria-pressed', 'false')
     // mousedown을 막지 않으면 버튼을 누르는 순간 선택이 풀린다.
     btn.addEventListener('mousedown', (e) => e.preventDefault())
@@ -3023,24 +3028,57 @@ export function createBubble({ editor, container }) {
       const start = editor.view.coordsAtPos(from)
       const end = editor.view.coordsAtPos(to)
       const box = container.getBoundingClientRect()
+      const w = element.offsetWidth
+      const h = element.offsetHeight
+
+      // 좌우로 가둔다. 그냥 두면 줄 끝을 드래그했을 때 오른쪽 끝의 형광펜 버튼이
+      // 창 밖으로 밀려나 눌리지 않는다.
       const centerX = (start.left + end.left) / 2 - box.left
-      element.style.left = `${Math.max(8, centerX - element.offsetWidth / 2)}px`
-      element.style.top = `${start.top - box.top - element.offsetHeight - 8}px`
+      const maxLeft = Math.max(8, box.width - w - 8)
+      element.style.left = `${Math.min(maxLeft, Math.max(8, centerX - w / 2))}px`
+
+      // 위에 자리가 없으면 아래로 내린다. 그대로 두면 첫 줄을 드래그했을 때
+      // 팝업이 상단바를 덮는다.
+      const above = start.top - box.top - h - 8
+      element.style.top = above >= 4 ? `${above}px` : `${end.bottom - box.top + 8}px`
     } catch {
       // 좌표를 못 구하면 위치만 포기하고 팝업은 그대로 둔다.
     }
   }
 
-  editor.on('selectionUpdate', update)
-  editor.on('blur', () => {
+  /**
+   * 본문에서 초점이 떠나면 팝업을 감춘다.
+   *
+   * 단, 초점이 팝업 버튼으로 옮겨가는 중이면 감추지 않는다. 본문에서 Tab을 누르면
+   * 바로 이 팝업으로 오는데, 그때 감춰버리면 키보드로는 형광펜에 영영 닿을 수 없다.
+   * blur는 새 요소가 초점을 받기 전에 먼저 오므로 한 박자 뒤에 확인한다.
+   */
+  const hide = () => {
+    setTimeout(() => {
+      if (element.contains(document.activeElement)) return
+      element.hidden = true
+    }, 0)
+  }
+
+  /** Esc로 빠져나간다. 이 길이 없으면 팝업에 들어갔다 나오는 방법이 Shift+Tab뿐이다. */
+  const onKeyDown = (e) => {
+    if (e.key !== 'Escape') return
+    e.preventDefault()
     element.hidden = true
-  })
+    editor.commands.focus()
+  }
+
+  element.addEventListener('keydown', onKeyDown)
+  editor.on('selectionUpdate', update)
+  editor.on('blur', hide)
 
   return {
     element,
     update,
     destroy() {
+      element.removeEventListener('keydown', onKeyDown)
       editor.off('selectionUpdate', update)
+      editor.off('blur', hide)
       element.remove()
     },
   }
@@ -3050,7 +3088,7 @@ export function createBubble({ editor, container }) {
 - [ ] **Step 4: 테스트 통과 확인**
 
 Run: `npm test -- bubble`
-Expected: PASS — 6개 통과
+Expected: PASS — 12개 통과
 
 - [ ] **Step 5: 팝업 스타일 추가**
 
@@ -3467,7 +3505,7 @@ refresh()
 - [ ] **Step 10: 전체 테스트 실행**
 
 Run: `npm test`
-Expected: PASS — 52 + bubble 6 + preview 7 + search 6 = 71개 통과
+Expected: PASS — 52 + bubble 12 + preview 7 + search 6 = 77개 통과
 
 - [ ] **Step 11: 손으로 확인**
 
@@ -3710,7 +3748,7 @@ git commit -m "feat: 자동 실행, 전역 단축키, 단일 인스턴스"
 - [ ] **Step 1: 자동 테스트 전체 실행**
 
 Run: `npm test`
-Expected: PASS — 71개
+Expected: PASS — 77개
 
 Run: `cd src-tauri && cargo test`
 Expected: PASS — 27개
