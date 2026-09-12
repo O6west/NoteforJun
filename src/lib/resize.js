@@ -1,3 +1,4 @@
+import '../styles/resize.css'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
 const ZONES = [
@@ -22,6 +23,9 @@ const ZONES = [
  * 창 크기가 바뀌는 더 성가신 문제가 생긴다.
  */
 export function installResizeZones(container = document.body) {
+  // 두 번 부르면 판정 영역이 겹쳐 쌓이고 떼어낼 방법이 없다. 한 번만 설치한다.
+  if (container.querySelector('.resize-zone')) return
+
   const win = getCurrentWindow()
   for (const { dir, cls } of ZONES) {
     const el = document.createElement('div')
@@ -29,7 +33,9 @@ export function installResizeZones(container = document.body) {
     el.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return
       e.preventDefault()
-      win.startResizeDragging(dir)
+      win.startResizeDragging(dir).catch((err) => {
+        console.error('크기 조절을 시작하지 못했습니다', err)
+      })
     })
     container.appendChild(el)
   }

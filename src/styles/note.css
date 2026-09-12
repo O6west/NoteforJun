@@ -31,7 +31,8 @@
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 5;
+  /* 크기 조절 영역(100)보다 위. 겹치는 자리에서는 끌기가 먼저 잡혀야 한다. */
+  z-index: 101;
   width: 56px;
   height: 13px;
   display: flex;
@@ -53,6 +54,8 @@
 }
 
 .bar-btn {
+  position: relative;
+  z-index: 101;
   flex: 0 0 auto;
   width: 22px;
   height: 22px;
@@ -79,6 +82,7 @@
   font-family: inherit;
   font-size: var(--nfj-title-size);
   font-weight: 600;
+  overflow: hidden;
   text-overflow: ellipsis;
   outline: none;
 }
