@@ -277,6 +277,30 @@ pub fn run() {
 }
 ```
 
+`src-tauri/capabilities/default.json` — **이 파일을 빠뜨리면 화면(JS) 쪽이 시스템 기능을 하나도 못 쓴다.** 오류 메시지 없이 그냥 아무 일도 일어나지 않기 때문에 원인 찾기가 매우 어렵다. 상단바 끌기, 창 숨기기, 창 위치 읽기가 전부 여기에 달려 있다.
+
+```json
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "NoteforJun의 모든 창(메모 창 note-*, 목록 창 list)에 필요한 권한",
+  "windows": ["*"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-outer-position",
+    "core:window:allow-inner-size",
+    "core:window:allow-scale-factor",
+    "core:event:default"
+  ]
+}
+```
+
+`windows: ["*"]`인 이유는 메모 창 이름이 `note-<uuid>`라 미리 적어둘 수 없기 때문이다. 1인용 로컬 앱이고 모든 창이 우리 것이므로 전부 허용해도 무방하다.
+
 `src-tauri/tauri.conf.json` — 이 단계에서는 눈으로 확인할 창이 하나 필요하므로 `note.html`을 띄운다. Task 3에서 프로그램이 직접 창을 만들도록 바꾼다.
 
 ```json

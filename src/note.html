@@ -5,6 +5,15 @@
     <title>NoteforJun</title>
   </head>
   <body>
-    <div id="app">note</div>
+    <div id="shell" data-color="yellow">
+      <div id="titlebar" data-tauri-drag-region>
+        <button class="bar-btn" id="new-note" title="새 메모 (Ctrl+Alt+N)">+</button>
+        <input id="title" type="text" maxlength="20" placeholder="제목" />
+        <button class="bar-btn" id="menu-btn" title="메뉴">⋯</button>
+        <button class="bar-btn" id="close" title="닫기">×</button>
+      </div>
+      <div id="editor"></div>
+    </div>
+    <script type="module" src="./note.js"></script>
   </body>
 </html>
