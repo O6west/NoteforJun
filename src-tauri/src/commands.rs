@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 use crate::note::{Note, NoteSummary, WindowState};
@@ -77,18 +77,8 @@ pub fn save_note(note: Note, paths: State<AppPaths>) -> Result<(), String> {
 pub fn create_note(app: AppHandle, paths: State<AppPaths>) -> Result<String, String> {
     let mut note = new_note(&paths.notes);
 
-    let last = app
-        .webview_windows()
-        .values()
-        .filter_map(|w| w.outer_position().ok())
-        .map(|p| (p.x, p.y))
-        .max_by_key(|(x, y)| x + y);
-    let screen = app
-        .primary_monitor()
-        .ok()
-        .flatten()
-        .map(|m| (m.size().width as i32, m.size().height as i32))
-        .unwrap_or((1920, 1080));
+    let last = windows::last_window_position(&app);
+    let screen = windows::primary_screen_logical(&app);
     let (x, y) = windows::next_position(last, screen, (note.window.width, note.window.height));
     note.window.x = x;
     note.window.y = y;
@@ -114,10 +104,9 @@ pub fn open_note_window(id: String, app: AppHandle, paths: State<AppPaths>) -> R
 
 #[tauri::command]
 pub fn hide_note_window(id: String, app: AppHandle, paths: State<AppPaths>) -> Result<(), String> {
-    if let Ok(mut note) = storage::load(&paths.notes, &id) {
-        note.window.visible = false;
-        let _ = storage::save(&paths.notes, &note);
-    }
+    let mut note = storage::load(&paths.notes, &id).map_err(|e| e.to_string())?;
+    note.window.visible = false;
+    storage::save(&paths.notes, &note).map_err(|e| e.to_string())?;
     windows::hide_note(&app, &id).map_err(|e| e.to_string())
 }
 

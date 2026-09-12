@@ -31,6 +31,33 @@ pub fn note_label(id: &str) -> String {
 
 pub const LIST_LABEL: &str = "list";
 
+/// 주 모니터 크기를 논리 픽셀로 돌려준다.
+/// 창을 만들 때 쓰는 좌표가 논리 픽셀이므로 여기서 단위를 맞춘다.
+/// 화면 배율이 100%가 아니면 물리 픽셀과 값이 달라진다.
+pub fn primary_screen_logical(app: &AppHandle) -> (i32, i32) {
+    app.primary_monitor()
+        .ok()
+        .flatten()
+        .map(|m| {
+            let s = m.size().to_logical::<f64>(m.scale_factor());
+            (s.width.round() as i32, s.height.round() as i32)
+        })
+        .unwrap_or((1920, 1080))
+}
+
+/// 지금 떠 있는 창들 중 가장 오른쪽 아래에 있는 창의 위치(논리 픽셀).
+/// 새 메모를 그 창에서 조금 비껴 놓기 위해 쓴다.
+pub fn last_window_position(app: &AppHandle) -> Option<(i32, i32)> {
+    app.webview_windows()
+        .values()
+        .filter_map(|w| {
+            let scale = w.scale_factor().ok()?;
+            let p = w.outer_position().ok()?.to_logical::<f64>(scale);
+            Some((p.x.round() as i32, p.y.round() as i32))
+        })
+        .max_by_key(|(x, y)| x + y)
+}
+
 /// 메모 창을 연다. 이미 있으면 보이게 하고 앞으로 가져온다.
 pub fn open_note(app: &AppHandle, note: &Note) -> tauri::Result<()> {
     let label = note_label(&note.id);
@@ -89,7 +116,11 @@ pub fn open_list(app: &AppHandle) -> tauri::Result<()> {
 pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
     let summaries = storage::list(notes_dir).unwrap_or_default();
     if summaries.is_empty() {
-        let note = crate::commands::new_note(notes_dir);
+        let mut note = crate::commands::new_note(notes_dir);
+        let screen = primary_screen_logical(app);
+        let (x, y) = next_position(None, screen, (note.window.width, note.window.height));
+        note.window.x = x;
+        note.window.y = y;
         let _ = storage::save(notes_dir, &note);
         return open_note(app, &note);
     }
