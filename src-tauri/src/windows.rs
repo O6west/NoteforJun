@@ -142,25 +142,45 @@ pub fn open_list(app: &AppHandle) -> tauri::Result<()> {
 
 /// 앱 시작 시 호출한다. 보이는 상태로 저장된 메모를 전부 되살리고,
 /// 메모가 하나도 없으면 빈 메모 하나를 만들어 띄운다.
+/// 앱을 켤 때. 열어둔 채 껐던 메모를 그대로 되살린다 — 책상을 원래대로 돌려놓는 일이다.
 pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
-    let notes: Vec<Note> = storage::list(notes_dir)
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|s| storage::load(notes_dir, &s.id).ok())
-        .collect();
-
+    let notes = load_all(notes_dir);
     let visible: Vec<String> = notes
         .iter()
         .filter(|n| n.window.visible)
         .map(|n| n.id.clone())
         .collect();
-    let empty: Vec<String> = notes
-        .iter()
-        .filter(|n| is_blank(n))
-        .map(|n| n.id.clone())
-        .collect();
+    apply(app, notes_dir, &notes, startup_plan(visible, blank_ids(&notes)))
+}
 
-    match startup_plan(visible, empty) {
+/// 작업표시줄 아이콘을 눌렀을 때. 적을 수 있는 빈 메모를 내민다.
+///
+/// 켤 때와 달리 이미 떠 있는 메모는 따지지 않는다. 아이콘을 눌렀다는 것은
+/// 무언가 적을 자리를 달라는 뜻이지, 어제 보던 것을 다시 보자는 뜻이 아니다.
+pub fn open_blank(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
+    let notes = load_all(notes_dir);
+    apply(app, notes_dir, &notes, startup_plan(vec![], blank_ids(&notes)))
+}
+
+fn load_all(notes_dir: &PathBuf) -> Vec<Note> {
+    storage::list(notes_dir)
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|s| storage::load(notes_dir, &s.id).ok())
+        .collect()
+}
+
+fn blank_ids(notes: &[Note]) -> Vec<String> {
+    notes.iter().filter(|n| is_blank(n)).map(|n| n.id.clone()).collect()
+}
+
+fn apply(
+    app: &AppHandle,
+    notes_dir: &PathBuf,
+    notes: &[Note],
+    plan: Startup,
+) -> tauri::Result<()> {
+    match plan {
         Startup::NewNote => {
             let mut note = crate::commands::new_note(notes_dir);
             let screen = primary_screen_logical(app);
