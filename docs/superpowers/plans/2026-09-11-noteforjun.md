@@ -1513,12 +1513,23 @@ html, body {
   background: transparent;
   overflow: hidden;
 }
+```
 
+크기 조절 영역은 토큰 파일이 아니라 **자기 파일**에 둔다. 토큰 파일이 다른 파일의 선택자(`.bar-btn`, `#grabber`)를 건드리면, 한 요소의 스타일이 두 파일에 흩어져서 불러오는 순서가 승패를 가르게 된다. 그 순서는 코드 어디에도 적혀 있지 않다.
+
+`src/styles/resize.css`:
+
+```css
 /*
  * 창 크기 조절 영역. 눈에는 보이지 않고 손에만 걸린다.
  * 창 테두리를 껐기 때문에 OS가 주던 리사이즈 테두리가 없어서 직접 두른다.
  * 가장자리 8px / 모서리 20px — 모서리를 넓게 잡는 이유는 사람이 주로 모서리를
  * 노리기 때문이고, 가장자리를 더 넓히면 본문 첫 글자를 클릭하려다 크기가 바뀐다.
+ *
+ * 층위는 100이다. 이보다 위에 있어야 하는 것(상단바 버튼, 창 이동 손잡이)은
+ * 각자의 파일에서 101을 준다. 여기서 남의 선택자를 건드리지 않는다 —
+ * 한 요소의 스타일이 두 파일에 흩어지면 불러오는 순서가 승패를 가르게 되고,
+ * 그 순서는 코드 어디에도 적혀 있지 않다.
  */
 .resize-zone { position: fixed; z-index: 100; }
 .resize-n  { top: 0; left: 20px; right: 20px; height: 8px; cursor: ns-resize; }
@@ -1529,15 +1540,13 @@ html, body {
 .resize-ne { top: 0; right: 0; width: 20px; height: 20px; cursor: nesw-resize; }
 .resize-sw { bottom: 0; left: 0; width: 20px; height: 20px; cursor: nesw-resize; }
 .resize-se { bottom: 0; right: 0; width: 20px; height: 20px; cursor: nwse-resize; }
-
-/* 위쪽 모서리 판정 영역이 +/⋯/× 버튼과 손잡이를 덮지 않도록 그 위로 올린다 */
-.bar-btn,
-#grabber { position: relative; z-index: 101; }
 ```
 
 그리고 그 영역을 실제로 설치하는 `src/lib/resize.js`를 만든다. 목록 창도 같은 문제를 겪으므로 두 창이 함께 쓴다.
 
 ```js
+// 모양이 동작을 따라다니게 한다. 이 함수를 부르는 창은 스타일시트를 따로 챙길 필요가 없다.
+import '../styles/resize.css'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
 const ZONES = [
@@ -1562,6 +1571,9 @@ const ZONES = [
  * 창 크기가 바뀌는 더 성가신 문제가 생긴다.
  */
 export function installResizeZones(container = document.body) {
+  // 두 번 부르면 판정 영역이 겹쳐 쌓이고 떼어낼 방법이 없다. 한 번만 설치한다.
+  if (container.querySelector('.resize-zone')) return
+
   const win = getCurrentWindow()
   for (const { dir, cls } of ZONES) {
     const el = document.createElement('div')
@@ -1569,7 +1581,9 @@ export function installResizeZones(container = document.body) {
     el.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return
       e.preventDefault()
-      win.startResizeDragging(dir)
+      win.startResizeDragging(dir).catch((err) => {
+        console.error('크기 조절을 시작하지 못했습니다', err)
+      })
     })
     container.appendChild(el)
   }
@@ -1614,7 +1628,8 @@ export function installResizeZones(container = document.body) {
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 5;
+  /* 크기 조절 영역(100)보다 위. 겹치는 자리에서는 끌기가 먼저 잡혀야 한다. */
+  z-index: 101;
   width: 56px;
   height: 13px;
   display: flex;
@@ -1636,6 +1651,9 @@ export function installResizeZones(container = document.body) {
 }
 
 .bar-btn {
+  /* 위쪽 모서리 판정 영역(20x20)이 + 와 × 버튼을 덮지 않도록 그 위로 올린다 */
+  position: relative;
+  z-index: 101;
   flex: 0 0 auto;
   width: 22px;
   height: 22px;
@@ -1662,6 +1680,8 @@ export function installResizeZones(container = document.body) {
   font-family: inherit;
   font-size: var(--nfj-title-size);
   font-weight: 600;
+  /* input에서는 overflow: hidden 없이 text-overflow만 주면 말줄임이 나오지 않는다 */
+  overflow: hidden;
   text-overflow: ellipsis;
   outline: none;
 }
@@ -3152,7 +3172,7 @@ Expected: PASS — 6개 통과
 #empty[hidden] { display: none; }
 ```
 
-`.bar-btn` 규칙은 `note.css`에 있으므로 목록 창에서도 쓰려면 `list.js`가 `note.css`를 불러오거나 규칙을 옮겨야 한다. 여기서는 **`note.css`의 `.bar-btn` 블록을 `tokens.css` 맨 아래로 옮긴다** — 두 창이 공유하는 유일한 컴포넌트이기 때문이다.
+`.bar-btn` 규칙은 `note.css`에 있으므로 목록 창에서도 써야 한다. **`note.css`의 `.bar-btn` 블록을 통째로 `src/styles/bar.css`로 옮기고**, `note.js`와 `list.js` 양쪽에서 불러온다. `tokens.css`로 옮기지 않는 이유는 그 파일이 변수와 기본 초기화만 담는 자리이기 때문이다 — 컴포넌트 규칙이 섞이면 한 요소의 스타일이 여러 파일에 흩어지고, 그때부터는 불러오는 순서가 승패를 가른다.
 
 - [ ] **Step 9: `list.js` 구현**
 
