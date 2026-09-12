@@ -128,5 +128,8 @@ describe('키보드로 쓰기', () => {
     btn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
 
     expect(bubble.element.hidden).toBe(true)
+    // 초점이 본문으로 돌아오는지는 여기서 확인할 수 없다. jsdom은 contenteditable을
+    // 구현하지 않아 editor.commands.focus()가 실제로 초점을 옮기지 못한다.
+    // 그 확인은 Task 10 수동 체크리스트에 있다.
   })
 })

@@ -3040,14 +3040,24 @@ export function createBubble({ editor, container }) {
 
       // 좌우로 가둔다. 그냥 두면 줄 끝을 드래그했을 때 오른쪽 끝의 형광펜 버튼이
       // 창 밖으로 밀려나 눌리지 않는다.
+      // 창 최소 폭이 220px이고 팝업은 132px이면 충분하므로 이 식은 항상 성립한다.
       const centerX = (start.left + end.left) / 2 - box.left
       const maxLeft = Math.max(8, box.width - w - 8)
       element.style.left = `${Math.min(maxLeft, Math.max(8, centerX - w / 2))}px`
 
-      // 위에 자리가 없으면 아래로 내린다. 그대로 두면 첫 줄을 드래그했을 때
-      // 팝업이 상단바를 덮는다.
+      // 위로 올릴 자리가 없으면 아래로 내린다.
+      //
+      // "자리가 없다"의 기준은 상단바를 실제로 재서 잡는다. 상수를 박아두면
+      // 상단바 높이나 팝업 크기가 바뀔 때 조용히 어긋난다 — 실제로 4px로
+      // 잡아뒀다가 34px짜리 상단바를 못 피한 적이 있다. 팝업이 상단바를 덮으면
+      // 창 손잡이와 +/⋯/× 버튼이 가려져 눌리지 않는다.
+      const bar = container.querySelector('#titlebar')
+      const minTop = (bar ? bar.getBoundingClientRect().bottom - box.top : 0) + 4
+      const maxTop = Math.max(minTop, box.height - h - 8)
       const above = start.top - box.top - h - 8
-      element.style.top = above >= 4 ? `${above}px` : `${end.bottom - box.top + 8}px`
+      const below = end.bottom - box.top + 8
+      const top = above >= minTop ? above : below
+      element.style.top = `${Math.min(maxTop, Math.max(minTop, top))}px`
     } catch {
       // 좌표를 못 구하면 위치만 포기하고 팝업은 그대로 둔다.
     }
@@ -3104,7 +3114,9 @@ Expected: PASS — 12개 통과
 ```css
 #bubble {
   position: absolute;
-  z-index: 20;
+  /* 크기 조절 영역(100)과 상단바 버튼(101)보다 위. 겹치는 자리에서는
+     서식 적용이 먼저 잡혀야 한다 — 형광펜은 이 팝업 말고 입구가 없다. */
+  z-index: 102;
   display: flex;
   gap: 2px;
   padding: 3px;
