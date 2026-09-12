@@ -288,6 +288,7 @@ pub fn run() {
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging",
     "core:window:allow-hide",
     "core:window:allow-show",
     "core:window:allow-set-focus",
@@ -1356,6 +1357,7 @@ git commit -m "feat: 창 관리와 Tauri 명령 8종"
 **Files:**
 - Create: `src/styles/tokens.css`, `src/styles/note.css`
 - Create: `src/lib/colors.js`, `src/lib/colors.test.js`
+- Create: `src/lib/resize.js` (크기 조절 영역 — 메모 창과 목록 창이 함께 쓴다)
 - Create: `vitest.config.js`, `test/setup.js`
 - Modify: `src/note.html`
 
@@ -1511,6 +1513,26 @@ html, body {
   background: transparent;
   overflow: hidden;
 }
+
+/*
+ * 창 크기 조절 영역. 눈에는 보이지 않고 손에만 걸린다.
+ * 창 테두리를 껐기 때문에 OS가 주던 리사이즈 테두리가 없어서 직접 두른다.
+ * 가장자리 8px / 모서리 20px — 모서리를 넓게 잡는 이유는 사람이 주로 모서리를
+ * 노리기 때문이고, 가장자리를 더 넓히면 본문 첫 글자를 클릭하려다 크기가 바뀐다.
+ */
+.resize-zone { position: fixed; z-index: 100; }
+.resize-n  { top: 0; left: 20px; right: 20px; height: 8px; cursor: ns-resize; }
+.resize-s  { bottom: 0; left: 20px; right: 20px; height: 8px; cursor: ns-resize; }
+.resize-w  { left: 0; top: 20px; bottom: 20px; width: 8px; cursor: ew-resize; }
+.resize-e  { right: 0; top: 20px; bottom: 20px; width: 8px; cursor: ew-resize; }
+.resize-nw { top: 0; left: 0; width: 20px; height: 20px; cursor: nwse-resize; }
+.resize-ne { top: 0; right: 0; width: 20px; height: 20px; cursor: nesw-resize; }
+.resize-sw { bottom: 0; left: 0; width: 20px; height: 20px; cursor: nesw-resize; }
+.resize-se { bottom: 0; right: 0; width: 20px; height: 20px; cursor: nwse-resize; }
+
+/* 위쪽 모서리 판정 영역이 +/⋯/× 버튼과 손잡이를 덮지 않도록 그 위로 올린다 */
+.bar-btn,
+#grabber { position: relative; z-index: 101; }
 ```
 
 - [ ] **Step 7: `note.css` 작성**
@@ -1670,6 +1692,10 @@ Task 6에서 본격적으로 채운다. 지금은 스타일과 폰트가 실제�
 import 'pretendard/dist/web/static/pretendard.css'
 import './styles/tokens.css'
 import './styles/note.css'
+
+import { installResizeZones } from './lib/resize.js'
+
+installResizeZones()
 
 document.getElementById('editor').textContent = '여기에 메모…'
 ```
@@ -2263,9 +2289,12 @@ import {
 } from './lib/api.js'
 import { COLORS, DEFAULT_COLOR } from './lib/colors.js'
 import { debounce } from './lib/debounce.js'
+import { installResizeZones } from './lib/resize.js'
 import { clampTitle } from './lib/title.js'
 
 const SAVE_DELAY = 500
+
+installResizeZones()
 
 const id = new URLSearchParams(location.search).get('id')
 const shell = document.getElementById('shell')
@@ -2903,7 +2932,10 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { createNote, deleteNote, listNotes, openNoteWindow } from './lib/api.js'
 import { colorOf } from './lib/colors.js'
 import { firstLine, previewText } from './lib/preview.js'
+import { installResizeZones } from './lib/resize.js'
 import { filterNotes } from './lib/search.js'
+
+installResizeZones()
 
 const cards = document.getElementById('cards')
 const empty = document.getElementById('empty')
