@@ -122,6 +122,35 @@ describe('키보드로 쓰기', () => {
     expect(bubble.element.hidden).toBe(true)
   })
 
+  it('마지막 버튼에서 Tab을 누르면 처음 버튼으로 돌아온다', () => {
+    const buttons = [...bubble.element.querySelectorAll('button')]
+    const last = buttons[buttons.length - 1]
+    last.focus()
+    last.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+
+    expect(document.activeElement).toBe(buttons[0])
+  })
+
+  it('처음 버튼에서 Shift+Tab을 누르면 마지막 버튼으로 간다', () => {
+    const buttons = [...bubble.element.querySelectorAll('button')]
+    buttons[0].focus()
+    buttons[0].dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }),
+    )
+
+    expect(document.activeElement).toBe(buttons[buttons.length - 1])
+  })
+
+  it('가운데 버튼에서는 Tab을 가로채지 않는다', () => {
+    const buttons = [...bubble.element.querySelectorAll('button')]
+    buttons[1].focus()
+    const e = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    buttons[1].dispatchEvent(e)
+
+    // 브라우저가 알아서 다음 버튼으로 넘긴다
+    expect(e.defaultPrevented).toBe(false)
+  })
+
   it('Esc를 누르면 팝업이 닫힌다', () => {
     const btn = bubble.element.querySelector('[data-mark="highlight"]')
     btn.focus()

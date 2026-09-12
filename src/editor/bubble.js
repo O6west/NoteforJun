@@ -101,12 +101,31 @@ export function createBubble({ editor, container }) {
     }, 0)
   }
 
-  /** Esc로 빠져나간다. 이 길이 없으면 팝업에 들어갔다 나오는 방법이 Shift+Tab뿐이다. */
   const onKeyDown = (e) => {
-    if (e.key !== 'Escape') return
-    e.preventDefault()
-    element.hidden = true
-    editor.commands.focus()
+    // Esc로 빠져나간다. 팝업 안에서 Tab이 맴돌기 때문에 나가는 길은 이것뿐이고,
+    // 그래서 하나로 분명해야 한다.
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      element.hidden = true
+      editor.commands.focus()
+      return
+    }
+
+    // Tab은 팝업 안에서 돈다. 마지막 형광펜에서 Tab을 누르면 처음 굵게로 돌아온다.
+    // 그냥 두면 네 번째에서 팝업 밖으로 나가버려, 버튼을 훑어보려면 매번
+    // 본문으로 돌아갔다 다시 들어와야 한다.
+    if (e.key !== 'Tab') return
+    const buttons = [...element.querySelectorAll('button')]
+    if (buttons.length === 0) return
+    const first = buttons[0]
+    const last = buttons[buttons.length - 1]
+    if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    } else if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    }
   }
 
   element.addEventListener('keydown', onKeyDown)
