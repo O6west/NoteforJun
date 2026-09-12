@@ -5,6 +5,15 @@
     <title>모든 메모</title>
   </head>
   <body>
-    <div id="app">list</div>
+    <div id="shell">
+      <div id="listbar" data-tauri-drag-region>
+        <input id="search" type="search" placeholder="검색" />
+        <button class="bar-btn" id="new-note" title="새 메모 (Ctrl+Alt+N)">+</button>
+        <button class="bar-btn" id="close" title="닫기">×</button>
+      </div>
+      <div id="cards"></div>
+      <p id="empty" hidden>메모가 없습니다.</p>
+    </div>
+    <script type="module" src="./list.js"></script>
   </body>
 </html>

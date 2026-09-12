@@ -1,5 +1,6 @@
 import 'pretendard/dist/web/static/pretendard.css'
 import './styles/tokens.css'
+import './styles/bar.css'
 import './styles/note.css'
 
 import { getCurrentWindow } from '@tauri-apps/api/window'
