@@ -72,3 +72,20 @@
   opacity: 0.5;
 }
 #empty[hidden] { display: none; }
+
+/*
+ * 실패를 알리는 줄. 메모 창의 ⚠와 같은 원칙으로 스스로 사라지지 않는다.
+ * 목록을 못 불러온 것과 메모가 하나도 없는 것은 화면상 똑같이 비어 보이므로,
+ * 둘을 구별해 주지 않으면 사용자는 메모가 전부 사라졌다고 생각한다.
+ */
+#error {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 9px 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  background: #f6e6e3;
+  color: #7a2e22;
+  font-size: 12px;
+  line-height: 1.5;
+}
+#error[hidden] { display: none; }

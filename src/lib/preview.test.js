@@ -34,4 +34,16 @@ describe('previewText', () => {
     expect(previewText('')).toBe('')
     expect(previewText(null)).toBe('')
   })
+
+  it('정확히 최대 길이면 자르지 않는다', () => {
+    expect(previewText('가'.repeat(10), 10)).toBe('가'.repeat(10))
+  })
+
+  it('최대 길이보다 한 글자 길면 자른다', () => {
+    expect(previewText('가'.repeat(11), 10)).toBe(`${'가'.repeat(10)}…`)
+  })
+
+  it('빈 줄만 있으면 빈 문자열이다', () => {
+    expect(previewText('\n \n\n')).toBe('')
+  })
 })
