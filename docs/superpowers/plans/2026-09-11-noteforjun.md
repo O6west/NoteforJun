@@ -1161,6 +1161,12 @@ pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
         }
         Startup::Restore(ids) => {
             for note in notes.iter().filter(|n| ids.contains(&n.id)) {
+                if note.window.visible {
+                    open_note(app, note)?;
+                    continue;
+                }
+                // 숨겨져 있던 메모를 되살릴 때만 기록을 고친다.
+                // 이미 보이는 메모까지 저장하면 켤 때마다 쓸데없는 디스크 쓰기가 생긴다.
                 let mut note = note.clone();
                 note.window.visible = true;
                 let _ = storage::save(notes_dir, &note);
@@ -3312,7 +3318,7 @@ export function previewText(text, maxChars = 60) {
 - [ ] **Step 4: 테스트 통과 확인**
 
 Run: `npm test -- preview`
-Expected: PASS — 7개 통과
+Expected: PASS — 10개 통과
 
 - [ ] **Step 5: `search`의 실패하는 테스트 작성**
 
@@ -3667,7 +3673,7 @@ refresh()
 - [ ] **Step 10: 전체 테스트 실행**
 
 Run: `npm test`
-Expected: PASS — 53 + bubble 12 + preview 7 + search 6 = 78개 통과
+Expected: PASS — 53 + bubble 12 + preview 10 + search 6 = 81개 통과
 
 - [ ] **Step 11: 손으로 확인**
 
@@ -3917,7 +3923,7 @@ git commit -m "feat: 자동 실행, 전역 단축키, 단일 인스턴스"
 - [ ] **Step 1: 자동 테스트 전체 실행**
 
 Run: `npm test`
-Expected: PASS — 78개
+Expected: PASS — 81개
 
 Run: `cd src-tauri && cargo test`
 Expected: PASS — 32개

@@ -172,6 +172,12 @@ pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
         }
         Startup::Restore(ids) => {
             for note in notes.iter().filter(|n| ids.contains(&n.id)) {
+                if note.window.visible {
+                    open_note(app, note)?;
+                    continue;
+                }
+                // 숨겨져 있던 메모를 되살릴 때만 기록을 고친다.
+                // 이미 보이는 메모까지 저장하면 켤 때마다 쓸데없는 디스크 쓰기가 생긴다.
                 let mut note = note.clone();
                 note.window.visible = true;
                 let _ = storage::save(notes_dir, &note);
@@ -215,7 +221,9 @@ mod tests {
     }
 
     #[test]
-    fn no_notes_at_all_creates_one() {
+    fn nothing_to_show_creates_a_blank_note() {
+        // 메모가 아예 없을 때와, 메모는 있지만 전부 숨겨졌고 빈 것도 없을 때가
+        // 같은 입력으로 모인다. 둘 다 아무것도 안 띄우면 앱에 닿을 수 없게 된다.
         assert_eq!(startup_plan(vec![], vec![]), Startup::NewNote);
     }
 
@@ -228,9 +236,24 @@ mod tests {
     }
 
     #[test]
-    fn all_hidden_and_none_blank_creates_one() {
-        // 창이 하나도 없으면 앱은 켜져 있는데 사용자가 닿을 방법이 없다
-        assert_eq!(startup_plan(vec![], vec![]), Startup::NewNote);
+    fn blank_means_no_title_and_no_body_text() {
+        let mut n = crate::note::Note {
+            id: "x".to_string(),
+            title: String::new(),
+            content: "<p></p>".to_string(),
+            color: "yellow".to_string(),
+            window: crate::note::WindowState::default(),
+            created_at: "2026-09-12T00:00:00Z".to_string(),
+            updated_at: "2026-09-12T00:00:00Z".to_string(),
+        };
+        assert!(is_blank(&n));
+
+        n.content = "<p>적어둔 것</p>".to_string();
+        assert!(!is_blank(&n), "본문이 있으면 빈 메모가 아니다");
+
+        n.content = "<p></p>".to_string();
+        n.title = "제목만".to_string();
+        assert!(!is_blank(&n), "제목이 있으면 빈 메모가 아니다");
     }
 
     #[test]
