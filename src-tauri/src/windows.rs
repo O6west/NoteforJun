@@ -25,6 +25,33 @@ pub fn next_position(last: Option<(i32, i32)>, screen: (i32, i32), size: (u32, u
     }
 }
 
+/// 앱을 켰을 때 무엇을 띄울지.
+#[derive(Debug, PartialEq)]
+pub enum Startup {
+    /// 메모가 하나도 없다 — 빈 메모를 하나 만들어 띄운다
+    NewNote,
+    /// 열어둔 채 껐던 메모들을 되살린다
+    Restore(Vec<String>),
+    /// 메모는 있는데 전부 숨겨져 있다 — 목록 창을 띄운다
+    List,
+}
+
+/// 켜질 때 무엇을 띄울지 정한다.
+///
+/// 세 번째 경우가 핵심이다. 메모가 있는데 전부 숨겨져 있을 때 아무것도 띄우지
+/// 않으면, 앱은 켜져 있는데 화면에는 아무것도 없다. 메모 창에는 OS 테두리가 없고
+/// 트레이 아이콘도 쓰지 않으므로, 그 상태에서 사용자가 앱에 다시 닿을 방법이 없다.
+/// 마지막 메모를 × 로 닫고 앱을 재시작하면 바로 이 상태가 된다.
+pub fn startup_plan(total: usize, visible: Vec<String>) -> Startup {
+    if total == 0 {
+        Startup::NewNote
+    } else if visible.is_empty() {
+        Startup::List
+    } else {
+        Startup::Restore(visible)
+    }
+}
+
 pub fn note_label(id: &str) -> String {
     format!("note-{id}")
 }
@@ -114,24 +141,35 @@ pub fn open_list(app: &AppHandle) -> tauri::Result<()> {
 /// 앱 시작 시 호출한다. 보이는 상태로 저장된 메모를 전부 되살리고,
 /// 메모가 하나도 없으면 빈 메모 하나를 만들어 띄운다.
 pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
-    let summaries = storage::list(notes_dir).unwrap_or_default();
-    if summaries.is_empty() {
-        let mut note = crate::commands::new_note(notes_dir);
-        let screen = primary_screen_logical(app);
-        let (x, y) = next_position(None, screen, (note.window.width, note.window.height));
-        note.window.x = x;
-        note.window.y = y;
-        let _ = storage::save(notes_dir, &note);
-        return open_note(app, &note);
-    }
-    for s in summaries {
-        if let Ok(note) = storage::load(notes_dir, &s.id) {
-            if note.window.visible {
-                open_note(app, &note)?;
+    let notes: Vec<Note> = storage::list(notes_dir)
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|s| storage::load(notes_dir, &s.id).ok())
+        .collect();
+    let visible: Vec<String> = notes
+        .iter()
+        .filter(|n| n.window.visible)
+        .map(|n| n.id.clone())
+        .collect();
+
+    match startup_plan(notes.len(), visible) {
+        Startup::NewNote => {
+            let mut note = crate::commands::new_note(notes_dir);
+            let screen = primary_screen_logical(app);
+            let (x, y) = next_position(None, screen, (note.window.width, note.window.height));
+            note.window.x = x;
+            note.window.y = y;
+            let _ = storage::save(notes_dir, &note);
+            open_note(app, &note)
+        }
+        Startup::List => open_list(app),
+        Startup::Restore(ids) => {
+            for note in notes.iter().filter(|n| ids.contains(&n.id)) {
+                open_note(app, note)?;
             }
+            Ok(())
         }
     }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -159,6 +197,26 @@ mod tests {
     #[test]
     fn wraps_to_top_left_when_off_bottom_edge() {
         assert_eq!(next_position(Some((100, 1000)), SCREEN, SIZE), (48, 48));
+    }
+
+    #[test]
+    fn no_notes_at_all_creates_one() {
+        assert_eq!(startup_plan(0, vec![]), Startup::NewNote);
+    }
+
+    #[test]
+    fn visible_notes_are_restored() {
+        assert_eq!(
+            startup_plan(3, vec!["a".to_string(), "b".to_string()]),
+            Startup::Restore(vec!["a".to_string(), "b".to_string()])
+        );
+    }
+
+    #[test]
+    fn all_notes_hidden_opens_the_list() {
+        // 아무것도 띄우지 않으면 앱은 켜져 있는데 화면에 아무것도 없다.
+        // 창 테두리도 트레이 아이콘도 없으므로 사용자가 다시 닿을 방법이 없다.
+        assert_eq!(startup_plan(1, vec![]), Startup::List);
     }
 
     #[test]

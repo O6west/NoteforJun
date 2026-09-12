@@ -1001,6 +1001,33 @@ pub fn next_position(last: Option<(i32, i32)>, screen: (i32, i32), size: (u32, u
     }
 }
 
+/// 앱을 켰을 때 무엇을 띄울지.
+#[derive(Debug, PartialEq)]
+pub enum Startup {
+    /// 메모가 하나도 없다 — 빈 메모를 하나 만들어 띄운다
+    NewNote,
+    /// 열어둔 채 껐던 메모들을 되살린다
+    Restore(Vec<String>),
+    /// 메모는 있는데 전부 숨겨져 있다 — 목록 창을 띄운다
+    List,
+}
+
+/// 켜질 때 무엇을 띄울지 정한다.
+///
+/// 세 번째 경우가 핵심이다. 메모가 있는데 전부 숨겨져 있을 때 아무것도 띄우지
+/// 않으면, 앱은 켜져 있는데 화면에는 아무것도 없다. 메모 창에는 OS 테두리가 없고
+/// 트레이 아이콘도 쓰지 않으므로, 그 상태에서 사용자가 앱에 다시 닿을 방법이 없다.
+/// 마지막 메모를 × 로 닫고 앱을 재시작하면 바로 이 상태가 된다.
+pub fn startup_plan(total: usize, visible: Vec<String>) -> Startup {
+    if total == 0 {
+        Startup::NewNote
+    } else if visible.is_empty() {
+        Startup::List
+    } else {
+        Startup::Restore(visible)
+    }
+}
+
 pub fn note_label(id: &str) -> String {
     format!("note-{id}")
 }
@@ -1040,7 +1067,7 @@ pub fn last_window_position(app: &AppHandle) -> Option<(i32, i32)> {
 - [ ] **Step 5: 테스트 통과 확인**
 
 Run: `cd src-tauri && cargo test windows::`
-Expected: PASS — 5개 통과
+Expected: PASS — 8개 통과
 
 - [ ] **Step 6: 창 여닫기 함수 추가**
 
@@ -1103,26 +1130,35 @@ pub fn open_list(app: &AppHandle) -> tauri::Result<()> {
 /// 앱 시작 시 호출한다. 보이는 상태로 저장된 메모를 전부 되살리고,
 /// 메모가 하나도 없으면 빈 메모 하나를 만들어 띄운다.
 pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
-    let summaries = storage::list(notes_dir).unwrap_or_default();
-    if summaries.is_empty() {
-        // 첫 메모는 화면 중앙에 띄운다. 기본 좌표를 그대로 쓰면
-        // next_position의 "창이 없으면 중앙" 분기가 영영 안 불린다.
-        let mut note = crate::commands::new_note(notes_dir);
-        let screen = primary_screen_logical(app);
-        let (x, y) = next_position(None, screen, (note.window.width, note.window.height));
-        note.window.x = x;
-        note.window.y = y;
-        let _ = storage::save(notes_dir, &note);
-        return open_note(app, &note);
-    }
-    for s in summaries {
-        if let Ok(note) = storage::load(notes_dir, &s.id) {
-            if note.window.visible {
-                open_note(app, &note)?;
+    let notes: Vec<Note> = storage::list(notes_dir)
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|s| storage::load(notes_dir, &s.id).ok())
+        .collect();
+    let visible: Vec<String> = notes
+        .iter()
+        .filter(|n| n.window.visible)
+        .map(|n| n.id.clone())
+        .collect();
+
+    match startup_plan(notes.len(), visible) {
+        Startup::NewNote => {
+            let mut note = crate::commands::new_note(notes_dir);
+            let screen = primary_screen_logical(app);
+            let (x, y) = next_position(None, screen, (note.window.width, note.window.height));
+            note.window.x = x;
+            note.window.y = y;
+            let _ = storage::save(notes_dir, &note);
+            open_note(app, &note)
+        }
+        Startup::List => open_list(app),
+        Startup::Restore(ids) => {
+            for note in notes.iter().filter(|n| ids.contains(&n.id)) {
+                open_note(app, note)?;
             }
+            Ok(())
         }
     }
-    Ok(())
 }
 ```
 
@@ -3694,7 +3730,7 @@ pub fn create_note(app: AppHandle) -> Result<String, String> {
 - [ ] **Step 3: 테스트로 회귀 확인**
 
 Run: `cd src-tauri && cargo test`
-Expected: PASS — 기존 27개 전부 통과 (windows 5 + storage 11 + html 6 + note 2 + commands 3)
+Expected: PASS — 기존 30개 전부 통과 (windows 8 + storage 11 + html 6 + note 2 + commands 3)
 
 - [ ] **Step 4: `lib.rs`에 플러그인 등록**
 
@@ -3862,7 +3898,7 @@ Run: `npm test`
 Expected: PASS — 78개
 
 Run: `cd src-tauri && cargo test`
-Expected: PASS — 27개
+Expected: PASS — 30개
 
 - [ ] **Step 2: 배포 빌드**
 
