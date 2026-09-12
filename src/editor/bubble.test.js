@@ -68,4 +68,18 @@ describe('드래그 팝업', () => {
     btn.click()
     expect(editor.getHTML()).not.toContain('<strong>')
   })
+
+  it('버튼을 누를 때 선택이 풀리지 않도록 mousedown을 막는다', () => {
+    typeText(editor, '중요한 부분')
+    editor.commands.selectAll()
+    bubble.update()
+
+    // 이 방어가 없으면 마우스를 누르는 순간 선택이 사라져서
+    // 클릭 처리가 실행될 때는 서식을 걸 대상이 이미 없다.
+    for (const btn of bubble.element.querySelectorAll('button')) {
+      const event = new MouseEvent('mousedown', { cancelable: true, bubbles: true })
+      btn.dispatchEvent(event)
+      expect(event.defaultPrevented).toBe(true)
+    }
+  })
 })

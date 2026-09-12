@@ -185,7 +185,9 @@
 
 #bubble {
   position: absolute;
-  z-index: 20;
+  /* 크기 조절 영역(100)과 상단바 버튼(101)보다 위. 겹치는 자리에서는
+     서식 적용이 먼저 잡혀야 한다 — 형광펜은 이 팝업 말고 입구가 없다. */
+  z-index: 102;
   display: flex;
   gap: 2px;
   padding: 3px;

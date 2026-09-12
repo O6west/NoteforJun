@@ -54,24 +54,37 @@ export function createBubble({ editor, container }) {
       const start = editor.view.coordsAtPos(from)
       const end = editor.view.coordsAtPos(to)
       const box = container.getBoundingClientRect()
+      const w = element.offsetWidth
+      const h = element.offsetHeight
+
+      // 좌우로 가둔다. 그냥 두면 줄 끝을 드래그했을 때 오른쪽 끝의 형광펜 버튼이
+      // 창 밖으로 밀려나 눌리지 않는다.
       const centerX = (start.left + end.left) / 2 - box.left
-      element.style.left = `${Math.max(8, centerX - element.offsetWidth / 2)}px`
-      element.style.top = `${start.top - box.top - element.offsetHeight - 8}px`
+      const maxLeft = Math.max(8, box.width - w - 8)
+      element.style.left = `${Math.min(maxLeft, Math.max(8, centerX - w / 2))}px`
+
+      // 위에 자리가 없으면 아래로 내린다. 그대로 두면 첫 줄을 드래그했을 때
+      // 팝업이 상단바를 덮는다.
+      const above = start.top - box.top - h - 8
+      element.style.top = above >= 4 ? `${above}px` : `${end.bottom - box.top + 8}px`
     } catch {
       // 좌표를 못 구하면 위치만 포기하고 팝업은 그대로 둔다.
     }
   }
 
-  editor.on('selectionUpdate', update)
-  editor.on('blur', () => {
+  const hide = () => {
     element.hidden = true
-  })
+  }
+
+  editor.on('selectionUpdate', update)
+  editor.on('blur', hide)
 
   return {
     element,
     update,
     destroy() {
       editor.off('selectionUpdate', update)
+      editor.off('blur', hide)
       element.remove()
     },
   }
