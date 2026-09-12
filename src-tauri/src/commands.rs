@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 use crate::note::{Note, NoteSummary, WindowState};
@@ -73,19 +73,29 @@ pub fn save_note(note: Note, paths: State<AppPaths>) -> Result<(), String> {
     storage::save(&paths.notes, &note).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub fn create_note(app: AppHandle, paths: State<AppPaths>) -> Result<String, String> {
-    let mut note = new_note(&paths.notes);
+/// 단축키 핸들러처럼 State를 쓸 수 없는 곳에서도 부를 수 있도록 AppHandle만 받는다.
+pub fn create_note_with(app: &AppHandle) -> Result<String, String> {
+    let notes = {
+        let paths = app.state::<AppPaths>();
+        paths.notes.clone()
+    };
+    let mut note = new_note(&notes);
 
-    let last = windows::last_window_position(&app);
-    let screen = windows::primary_screen_logical(&app);
+    // 좌표 단위를 섞지 않도록 windows.rs의 헬퍼를 쓴다 (논리 픽셀).
+    let last = windows::last_window_position(app);
+    let screen = windows::primary_screen_logical(app);
     let (x, y) = windows::next_position(last, screen, (note.window.width, note.window.height));
     note.window.x = x;
     note.window.y = y;
 
-    storage::save(&paths.notes, &note).map_err(|e| e.to_string())?;
-    windows::open_note(&app, &note).map_err(|e| e.to_string())?;
+    storage::save(&notes, &note).map_err(|e| e.to_string())?;
+    windows::open_note(app, &note).map_err(|e| e.to_string())?;
     Ok(note.id)
+}
+
+#[tauri::command]
+pub fn create_note(app: AppHandle) -> Result<String, String> {
+    create_note_with(&app)
 }
 
 #[tauri::command]
