@@ -1093,6 +1093,12 @@ pub fn open_note(app: &AppHandle, note: &Note) -> tauri::Result<()> {
         .position(note.window.x as f64, note.window.y as f64)
         .decorations(false)
         .resizable(true)
+        // 최대화를 막는다. 상단바를 더블클릭하면 Tauri가 최대화하는데, 우리 창에는
+        // OS 제목 표시줄이 없어 되돌릴 버튼이 없다. 한번 최대화되면 빠져나올 길이
+        // 사라지고, 메모 창은 크기를 기억하므로 그 크기가 그대로 저장된다.
+        // 크게 쓰고 싶으면 가장자리를 끌면 된다.
+        // (이미 최대화된 창을 되돌리는 것은 Tauri가 여전히 허용한다)
+        .maximizable(false)
         // 작업표시줄에서 숨기지 않는다. 메모가 여러 개여도 윈도우가 아이콘 하나로
         // 묶어주므로 지저분해지지 않고, 숨기면 메모 창만 떠 있을 때 앱이
         // 작업표시줄에서 완전히 사라져 다시 닿을 방법이 없어진다.
@@ -1127,6 +1133,12 @@ pub fn open_list(app: &AppHandle) -> tauri::Result<()> {
         .min_inner_size(360.0, 240.0)
         .decorations(false)
         .resizable(true)
+        // 최대화를 막는다. 상단바를 더블클릭하면 Tauri가 최대화하는데, 우리 창에는
+        // OS 제목 표시줄이 없어 되돌릴 버튼이 없다. 한번 최대화되면 빠져나올 길이
+        // 사라지고, 메모 창은 크기를 기억하므로 그 크기가 그대로 저장된다.
+        // 크게 쓰고 싶으면 가장자리를 끌면 된다.
+        // (이미 최대화된 창을 되돌리는 것은 Tauri가 여전히 허용한다)
+        .maximizable(false)
         .build()?;
     Ok(())
 }
