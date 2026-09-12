@@ -143,6 +143,15 @@ async function boot() {
     saver.call()
   })
 
+  // 제목을 다 쓰면 본문으로 내려간다. 제목은 한 줄이라 Enter가 할 일이 따로 없고,
+  // Tab은 그냥 두면 ⋯ 버튼으로 가버려서 정작 쓰려던 본문을 건너뛴다.
+  titleInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && !(e.key === 'Tab' && !e.shiftKey)) return
+    if (e.isComposing) return // 한글 조합을 끝내는 Enter는 넘기지 않는다
+    e.preventDefault()
+    editor?.commands.focus('end')
+  })
+
   editor = createEditor({
     element: document.getElementById('editor'),
     content: note.content,
