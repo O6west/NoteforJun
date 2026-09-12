@@ -28,27 +28,29 @@ pub fn next_position(last: Option<(i32, i32)>, screen: (i32, i32), size: (u32, u
 /// 앱을 켰을 때 무엇을 띄울지.
 #[derive(Debug, PartialEq)]
 pub enum Startup {
-    /// 메모가 하나도 없다 — 빈 메모를 하나 만들어 띄운다
+    /// 빈 메모를 하나 만들어 띄운다
     NewNote,
-    /// 열어둔 채 껐던 메모들을 되살린다
+    /// 이 메모들을 띄운다
     Restore(Vec<String>),
-    /// 메모는 있는데 전부 숨겨져 있다 — 목록 창을 띄운다
-    List,
 }
 
 /// 켜질 때 무엇을 띄울지 정한다.
 ///
-/// 세 번째 경우가 핵심이다. 메모가 있는데 전부 숨겨져 있을 때 아무것도 띄우지
-/// 않으면, 앱은 켜져 있는데 화면에는 아무것도 없다. 메모 창에는 OS 테두리가 없고
-/// 트레이 아이콘도 쓰지 않으므로, 그 상태에서 사용자가 앱에 다시 닿을 방법이 없다.
-/// 마지막 메모를 × 로 닫고 앱을 재시작하면 바로 이 상태가 된다.
-pub fn startup_plan(total: usize, visible: Vec<String>) -> Startup {
-    if total == 0 {
-        Startup::NewNote
-    } else if visible.is_empty() {
-        Startup::List
-    } else {
-        Startup::Restore(visible)
+/// 아무것도 안 띄우는 선택지는 없다. 메모 창에는 OS 테두리가 없고 트레이 아이콘도
+/// 쓰지 않으므로, 창이 하나도 없으면 앱은 켜져 있는데 사용자가 닿을 방법이 없다.
+/// 마지막 메모를 × 로 닫고 재시작하면 바로 그 상태가 된다.
+///
+/// 전부 숨겨져 있을 때 빈 메모를 내미는 이유는 이 앱의 쓰임새 때문이다 —
+/// 생각났을 때 바로 적는 것이지, 목록부터 보는 게 아니다.
+/// 다만 매번 새로 만들면 껐다 켤 때마다 빈 메모가 쌓이므로,
+/// 이미 비어 있는 메모가 있으면 그것을 다시 띄운다.
+pub fn startup_plan(visible: Vec<String>, empty: Vec<String>) -> Startup {
+    if !visible.is_empty() {
+        return Startup::Restore(visible);
+    }
+    match empty.into_iter().next() {
+        Some(id) => Startup::Restore(vec![id]),
+        None => Startup::NewNote,
     }
 }
 
@@ -146,13 +148,19 @@ pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
         .iter()
         .filter_map(|s| storage::load(notes_dir, &s.id).ok())
         .collect();
+
     let visible: Vec<String> = notes
         .iter()
         .filter(|n| n.window.visible)
         .map(|n| n.id.clone())
         .collect();
+    let empty: Vec<String> = notes
+        .iter()
+        .filter(|n| is_blank(n))
+        .map(|n| n.id.clone())
+        .collect();
 
-    match startup_plan(notes.len(), visible) {
+    match startup_plan(visible, empty) {
         Startup::NewNote => {
             let mut note = crate::commands::new_note(notes_dir);
             let screen = primary_screen_logical(app);
@@ -162,14 +170,21 @@ pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
             let _ = storage::save(notes_dir, &note);
             open_note(app, &note)
         }
-        Startup::List => open_list(app),
         Startup::Restore(ids) => {
             for note in notes.iter().filter(|n| ids.contains(&n.id)) {
-                open_note(app, note)?;
+                let mut note = note.clone();
+                note.window.visible = true;
+                let _ = storage::save(notes_dir, &note);
+                open_note(app, &note)?;
             }
             Ok(())
         }
     }
+}
+
+/// 제목도 본문도 비어 있는 메모. 다시 내밀어도 사용자가 잃을 것이 없다.
+fn is_blank(note: &Note) -> bool {
+    note.title.trim().is_empty() && crate::html::strip_html(&note.content).trim().is_empty()
 }
 
 #[cfg(test)]
@@ -201,22 +216,38 @@ mod tests {
 
     #[test]
     fn no_notes_at_all_creates_one() {
-        assert_eq!(startup_plan(0, vec![]), Startup::NewNote);
+        assert_eq!(startup_plan(vec![], vec![]), Startup::NewNote);
     }
 
     #[test]
     fn visible_notes_are_restored() {
         assert_eq!(
-            startup_plan(3, vec!["a".to_string(), "b".to_string()]),
+            startup_plan(vec!["a".to_string(), "b".to_string()], vec![]),
             Startup::Restore(vec!["a".to_string(), "b".to_string()])
         );
     }
 
     #[test]
-    fn all_notes_hidden_opens_the_list() {
-        // 아무것도 띄우지 않으면 앱은 켜져 있는데 화면에 아무것도 없다.
-        // 창 테두리도 트레이 아이콘도 없으므로 사용자가 다시 닿을 방법이 없다.
-        assert_eq!(startup_plan(1, vec![]), Startup::List);
+    fn all_hidden_and_none_blank_creates_one() {
+        // 창이 하나도 없으면 앱은 켜져 있는데 사용자가 닿을 방법이 없다
+        assert_eq!(startup_plan(vec![], vec![]), Startup::NewNote);
+    }
+
+    #[test]
+    fn all_hidden_reuses_an_existing_blank_note() {
+        // 매번 새로 만들면 껐다 켤 때마다 빈 메모가 쌓인다
+        assert_eq!(
+            startup_plan(vec![], vec!["blank".to_string()]),
+            Startup::Restore(vec!["blank".to_string()])
+        );
+    }
+
+    #[test]
+    fn visible_notes_win_over_a_blank_one() {
+        assert_eq!(
+            startup_plan(vec!["open".to_string()], vec!["blank".to_string()]),
+            Startup::Restore(vec!["open".to_string()])
+        );
     }
 
     #[test]

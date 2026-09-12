@@ -1004,27 +1004,29 @@ pub fn next_position(last: Option<(i32, i32)>, screen: (i32, i32), size: (u32, u
 /// 앱을 켰을 때 무엇을 띄울지.
 #[derive(Debug, PartialEq)]
 pub enum Startup {
-    /// 메모가 하나도 없다 — 빈 메모를 하나 만들어 띄운다
+    /// 빈 메모를 하나 만들어 띄운다
     NewNote,
-    /// 열어둔 채 껐던 메모들을 되살린다
+    /// 이 메모들을 띄운다
     Restore(Vec<String>),
-    /// 메모는 있는데 전부 숨겨져 있다 — 목록 창을 띄운다
-    List,
 }
 
 /// 켜질 때 무엇을 띄울지 정한다.
 ///
-/// 세 번째 경우가 핵심이다. 메모가 있는데 전부 숨겨져 있을 때 아무것도 띄우지
-/// 않으면, 앱은 켜져 있는데 화면에는 아무것도 없다. 메모 창에는 OS 테두리가 없고
-/// 트레이 아이콘도 쓰지 않으므로, 그 상태에서 사용자가 앱에 다시 닿을 방법이 없다.
-/// 마지막 메모를 × 로 닫고 앱을 재시작하면 바로 이 상태가 된다.
-pub fn startup_plan(total: usize, visible: Vec<String>) -> Startup {
-    if total == 0 {
-        Startup::NewNote
-    } else if visible.is_empty() {
-        Startup::List
-    } else {
-        Startup::Restore(visible)
+/// 아무것도 안 띄우는 선택지는 없다. 메모 창에는 OS 테두리가 없고 트레이 아이콘도
+/// 쓰지 않으므로, 창이 하나도 없으면 앱은 켜져 있는데 사용자가 닿을 방법이 없다.
+/// 마지막 메모를 × 로 닫고 재시작하면 바로 그 상태가 된다.
+///
+/// 전부 숨겨져 있을 때 빈 메모를 내미는 이유는 이 앱의 쓰임새 때문이다 —
+/// 생각났을 때 바로 적는 것이지, 목록부터 보는 게 아니다.
+/// 다만 매번 새로 만들면 껐다 켤 때마다 빈 메모가 쌓이므로,
+/// 이미 비어 있는 메모가 있으면 그것을 다시 띄운다.
+pub fn startup_plan(visible: Vec<String>, empty: Vec<String>) -> Startup {
+    if !visible.is_empty() {
+        return Startup::Restore(visible);
+    }
+    match empty.into_iter().next() {
+        Some(id) => Startup::Restore(vec![id]),
+        None => Startup::NewNote,
     }
 }
 
@@ -1067,7 +1069,7 @@ pub fn last_window_position(app: &AppHandle) -> Option<(i32, i32)> {
 - [ ] **Step 5: 테스트 통과 확인**
 
 Run: `cd src-tauri && cargo test windows::`
-Expected: PASS — 8개 통과
+Expected: PASS — 10개 통과
 
 - [ ] **Step 6: 창 여닫기 함수 추가**
 
@@ -1135,13 +1137,19 @@ pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
         .iter()
         .filter_map(|s| storage::load(notes_dir, &s.id).ok())
         .collect();
+
     let visible: Vec<String> = notes
         .iter()
         .filter(|n| n.window.visible)
         .map(|n| n.id.clone())
         .collect();
+    let empty: Vec<String> = notes
+        .iter()
+        .filter(|n| is_blank(n))
+        .map(|n| n.id.clone())
+        .collect();
 
-    match startup_plan(notes.len(), visible) {
+    match startup_plan(visible, empty) {
         Startup::NewNote => {
             let mut note = crate::commands::new_note(notes_dir);
             let screen = primary_screen_logical(app);
@@ -1151,14 +1159,21 @@ pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
             let _ = storage::save(notes_dir, &note);
             open_note(app, &note)
         }
-        Startup::List => open_list(app),
         Startup::Restore(ids) => {
             for note in notes.iter().filter(|n| ids.contains(&n.id)) {
-                open_note(app, note)?;
+                let mut note = note.clone();
+                note.window.visible = true;
+                let _ = storage::save(notes_dir, &note);
+                open_note(app, &note)?;
             }
             Ok(())
         }
     }
+}
+
+/// 제목도 본문도 비어 있는 메모. 다시 내밀어도 사용자가 잃을 것이 없다.
+fn is_blank(note: &Note) -> bool {
+    note.title.trim().is_empty() && crate::html::strip_html(&note.content).trim().is_empty()
 }
 ```
 
@@ -3730,7 +3745,7 @@ pub fn create_note(app: AppHandle) -> Result<String, String> {
 - [ ] **Step 3: 테스트로 회귀 확인**
 
 Run: `cd src-tauri && cargo test`
-Expected: PASS — 기존 30개 전부 통과 (windows 8 + storage 11 + html 6 + note 2 + commands 3)
+Expected: PASS — 기존 32개 전부 통과 (windows 10 + storage 11 + html 6 + note 2 + commands 3)
 
 - [ ] **Step 4: `lib.rs`에 플러그인 등록**
 
@@ -3741,8 +3756,15 @@ pub fn run() {
     tauri::Builder::default()
         // 두 번째 실행은 새 앱을 띄우지 않고 이미 떠 있는 앱의 목록 창을 보여준다.
         // 작업표시줄 아이콘을 눌렀을 때 기대하는 동작이다.
+        // 두 번째 실행은 새 앱을 띄우지 않고, 켜질 때와 같은 규칙으로 창을 내민다.
+        // 작업표시줄 아이콘을 눌렀을 때 기대하는 동작이다 — 메모가 떠 있으면
+        // 그것들이 앞으로 나오고, 전부 숨겨져 있으면 적을 수 있는 빈 메모가 나온다.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            let _ = windows::open_list(app);
+            let notes = {
+                let paths = app.state::<AppPaths>();
+                paths.notes.clone()
+            };
+            let _ = windows::restore_all(app, &notes);
         }))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -3898,7 +3920,7 @@ Run: `npm test`
 Expected: PASS — 78개
 
 Run: `cd src-tauri && cargo test`
-Expected: PASS — 30개
+Expected: PASS — 32개
 
 - [ ] **Step 2: 배포 빌드**
 
