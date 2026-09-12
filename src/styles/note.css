@@ -24,7 +24,7 @@
  * 창을 끌기 위한 손잡이.
  * 제목칸 위에 겹쳐 떠 있어 제목 폭을 전혀 뺏지 않는다. 제목을 20자까지
  * 꽉 채워도 잡을 곳이 사라지지 않는 것이 이 요소가 존재하는 이유다.
- * 보이는 선은 28px이지만 실제로 잡히는 영역은 48px로 넉넉히 둔다.
+ * 보이는 선은 40px이지만 실제로 잡히는 영역은 56px로 넉넉히 둔다.
  */
 #grabber {
   position: absolute;
@@ -32,7 +32,7 @@
   left: 50%;
   transform: translateX(-50%);
   z-index: 5;
-  width: 48px;
+  width: 56px;
   height: 13px;
   display: flex;
   align-items: center;
@@ -44,7 +44,7 @@
 }
 #grabber i {
   display: block;
-  width: 28px;
+  width: 40px;
   height: 3px;
   border-radius: 2px;
   /* 상단바 글자색을 그대로 쓰므로 6색 어디서나 알아서 어울린다 */
