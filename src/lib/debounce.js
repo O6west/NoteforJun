@@ -18,12 +18,12 @@ export function debounce(fn, ms) {
       }, ms)
     },
     flush() {
-      if (!timer) return
+      if (!timer) return undefined
       clearTimeout(timer)
       timer = null
       const args = pending
       pending = null
-      fn(...args)
+      return fn(...args)
     },
     cancel() {
       if (timer) clearTimeout(timer)

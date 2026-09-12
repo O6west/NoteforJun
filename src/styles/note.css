@@ -139,6 +139,11 @@
   opacity: 0.7;
   transition: opacity 0.12s ease;
 }
+/* 저장에 실패하면 사라지지 않는다. 사라지는 경고는 아무도 못 본다. */
+#saved.warn {
+  opacity: 0.95;
+  transition: none;
+}
 
 #menu {
   position: absolute;

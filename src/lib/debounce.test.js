@@ -49,4 +49,22 @@ describe('debounce', () => {
     vi.advanceTimersByTime(1000)
     expect(fn).not.toHaveBeenCalled()
   })
+
+  it('flush는 대기 중이던 함수의 반환값을 그대로 돌려준다', () => {
+    const fn = vi.fn(() => 'saved')
+    const d = debounce(fn, 500)
+    d.call('a')
+    expect(d.flush()).toBe('saved')
+  })
+
+  it('대기 중인 호출이 없으면 flush는 undefined를 돌려준다', () => {
+    expect(debounce(vi.fn(), 500).flush()).toBeUndefined()
+  })
+
+  it('flush가 돌려준 약속을 기다릴 수 있다', async () => {
+    const fn = vi.fn(() => Promise.resolve('저장됨'))
+    const d = debounce(fn, 500)
+    d.call()
+    await expect(d.flush()).resolves.toBe('저장됨')
+  })
 })

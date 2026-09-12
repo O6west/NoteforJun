@@ -29,6 +29,7 @@ const swatches = document.getElementById('swatches')
 
 let note = null
 let editor = null
+let remember = null
 
 const savedMark = document.getElementById('saved')
 let savedTimer = null
@@ -39,14 +40,52 @@ let savedTimer = null
  * 그렇다고 늘 띄워두면 잔소리가 된다. 그래서 떴다가 스스로 사라진다.
  */
 function flashSaved() {
+  savedMark.textContent = '✓'
+  savedMark.title = ''
+  savedMark.classList.remove('warn')
   savedMark.classList.add('show')
   clearTimeout(savedTimer)
   savedTimer = setTimeout(() => savedMark.classList.remove('show'), 900)
 }
 
-const saver = debounce(() => {
-  if (note) saveNote(note).then(flashSaved)
-}, SAVE_DELAY)
+/** 저장 실패는 사라지지 않는 경고로 남긴다. 글이 날아가는 것이 이 앱 최악의 사고다. */
+function showSaveError(err) {
+  console.error('메모를 저장하지 못했습니다', err)
+  clearTimeout(savedTimer)
+  savedMark.textContent = '⚠'
+  savedMark.title = '저장하지 못했습니다. 창을 닫지 말고 글을 복사해 두세요.'
+  savedMark.classList.add('show', 'warn')
+}
+
+/** 메모를 못 읽어도 창은 닫을 수 있어야 한다. */
+function showLoadError(err) {
+  console.error('메모를 불러오지 못했습니다', err)
+  const editorEl = document.getElementById('editor')
+  editorEl.textContent = '이 메모를 불러오지 못했습니다. 파일이 손상되었을 수 있습니다.'
+  editorEl.style.opacity = '0.55'
+  savedMark.textContent = '⚠'
+  savedMark.title = '메모를 불러오지 못했습니다.'
+  savedMark.classList.add('show', 'warn')
+}
+
+/** 저장하는 유일한 통로. 성공하면 표시를 띄우고, 실패하면 경고를 남긴다. */
+function persist() {
+  if (!note) return Promise.resolve()
+  return saveNote(note).then(flashSaved, showSaveError)
+}
+
+const saver = debounce(() => persist(), SAVE_DELAY)
+
+// 무슨 일이 있어도 창은 닫을 수 있어야 한다. 불러오기가 실패해도 마찬가지다.
+document.getElementById('close').addEventListener('click', async () => {
+  try {
+    await saver.flush()
+    if (remember) await remember.flush()
+  } catch (err) {
+    console.error('닫기 전 저장에 실패했습니다', err)
+  }
+  await hideNoteWindow(id)
+})
 
 function applyColor(key) {
   shell.dataset.color = key
@@ -73,7 +112,12 @@ function buildSwatches() {
 }
 
 async function boot() {
-  note = await loadNote(id)
+  try {
+    note = await loadNote(id)
+  } catch (err) {
+    showLoadError(err)
+    return
+  }
   buildSwatches()
   applyColor(note.color || DEFAULT_COLOR)
 
@@ -104,18 +148,14 @@ async function boot() {
   document.addEventListener('click', () => {
     menu.hidden = true
   })
-  document.getElementById('close').addEventListener('click', async () => {
-    saver.flush()
-    await hideNoteWindow(id)
-  })
 
   // 창 위치·크기는 이동이 끝난 시점에만 저장한다.
   const win = getCurrentWindow()
-  const remember = debounce(async () => {
+  remember = debounce(async () => {
     const pos = await win.outerPosition()
     const size = await win.innerSize()
     note.window = { x: pos.x, y: pos.y, width: size.width, height: size.height, visible: true }
-    saveNote(note).then(flashSaved)
+    return persist()
   }, SAVE_DELAY)
   await win.onMoved(() => remember.call())
   await win.onResized(() => remember.call())
