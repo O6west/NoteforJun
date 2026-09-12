@@ -1,4 +1,5 @@
 #shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -138,3 +139,41 @@
   opacity: 0.7;
   transition: opacity 0.12s ease;
 }
+
+#menu {
+  position: absolute;
+  top: calc(var(--nfj-bar-height) + 4px);
+  right: 8px;
+  z-index: 10;
+  padding: 8px;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+}
+#menu[hidden] { display: none; }
+
+#swatches { display: flex; gap: 6px; margin-bottom: 8px; }
+.swatch {
+  width: 22px;
+  height: 22px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+}
+.swatch[aria-pressed='true'] { border-color: #2e2e2c; }
+
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--nfj-ink);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-item:hover { background: rgba(0, 0, 0, 0.06); }
