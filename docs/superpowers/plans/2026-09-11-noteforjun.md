@@ -1729,6 +1729,14 @@ export function installResizeZones(container = document.body) {
   transition: opacity 0.12s ease;
 }
 
+/* 저장에 실패하면 사라지지 않는다. 사라지는 경고는 아무도 못 본다.
+   색을 주지 않는 이유는 상단바 글자색이 6색마다 달라서다 — 어떤 색을 골라도
+   여섯 중 어딘가에서는 안 보인다. ⚠ 기호 자체가 뜻을 전달한다. */
+#saved.warn {
+  opacity: 0.95;
+  transition: none;
+}
+
 /* 빈 문서일 때만 안내 문구를 보여준다 */
 #editor p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
@@ -2316,6 +2324,24 @@ describe('debounce', () => {
     vi.advanceTimersByTime(1000)
     expect(fn).not.toHaveBeenCalled()
   })
+
+  it('flush는 대기 중이던 함수의 반환값을 그대로 돌려준다', () => {
+    const fn = vi.fn(() => 'saved')
+    const d = debounce(fn, 500)
+    d.call('a')
+    expect(d.flush()).toBe('saved')
+  })
+
+  it('대기 중인 호출이 없으면 flush는 undefined를 돌려준다', () => {
+    expect(debounce(vi.fn(), 500).flush()).toBeUndefined()
+  })
+
+  it('flush가 돌려준 약속을 기다릴 수 있다', async () => {
+    const fn = vi.fn(() => Promise.resolve('저장됨'))
+    const d = debounce(fn, 500)
+    d.call()
+    await expect(d.flush()).resolves.toBe('저장됨')
+  })
 })
 ```
 
@@ -2347,12 +2373,14 @@ export function debounce(fn, ms) {
       }, ms)
     },
     flush() {
-      if (!timer) return
+      // 반환이 중요하다. 창을 닫기 전에 저장이 끝나기를 기다리려면
+      // 부르는 쪽이 기다릴 대상을 돌려받아야 한다.
+      if (!timer) return undefined
       clearTimeout(timer)
       timer = null
       const args = pending
       pending = null
-      fn(...args)
+      return fn(...args)
     },
     cancel() {
       if (timer) clearTimeout(timer)
@@ -2366,7 +2394,7 @@ export function debounce(fn, ms) {
 - [ ] **Step 4: 테스트 통과 확인**
 
 Run: `npm test -- debounce`
-Expected: PASS — 5개 통과
+Expected: PASS — 8개 통과
 
 - [ ] **Step 5: `title`의 실패하는 테스트 작성**
 
@@ -2555,6 +2583,7 @@ const swatches = document.getElementById('swatches')
 
 let note = null
 let editor = null
+let remember = null
 
 const savedMark = document.getElementById('saved')
 let savedTimer = null
@@ -2565,14 +2594,52 @@ let savedTimer = null
  * 그렇다고 늘 띄워두면 잔소리가 된다. 그래서 떴다가 스스로 사라진다.
  */
 function flashSaved() {
+  savedMark.textContent = '✓'
+  savedMark.title = ''
+  savedMark.classList.remove('warn')
   savedMark.classList.add('show')
   clearTimeout(savedTimer)
   savedTimer = setTimeout(() => savedMark.classList.remove('show'), 900)
 }
 
-const saver = debounce(() => {
-  if (note) saveNote(note).then(flashSaved)
-}, SAVE_DELAY)
+/** 저장 실패는 사라지지 않는 경고로 남긴다. 글이 날아가는 것이 이 앱 최악의 사고다. */
+function showSaveError(err) {
+  console.error('메모를 저장하지 못했습니다', err)
+  clearTimeout(savedTimer)
+  savedMark.textContent = '⚠'
+  savedMark.title = '저장하지 못했습니다. 창을 닫지 말고 글을 복사해 두세요.'
+  savedMark.classList.add('show', 'warn')
+}
+
+/** 메모를 못 읽어도 창은 닫을 수 있어야 한다. */
+function showLoadError(err) {
+  console.error('메모를 불러오지 못했습니다', err)
+  const editorEl = document.getElementById('editor')
+  editorEl.textContent = '이 메모를 불러오지 못했습니다. 파일이 손상되었을 수 있습니다.'
+  editorEl.style.opacity = '0.55'
+  savedMark.textContent = '⚠'
+  savedMark.title = '메모를 불러오지 못했습니다.'
+  savedMark.classList.add('show', 'warn')
+}
+
+/** 저장하는 유일한 통로. 성공하면 표시를 띄우고, 실패하면 경고를 남긴다. */
+function persist() {
+  if (!note) return Promise.resolve()
+  return saveNote(note).then(flashSaved, showSaveError)
+}
+
+const saver = debounce(() => persist(), SAVE_DELAY)
+
+// 무슨 일이 있어도 창은 닫을 수 있어야 한다. 불러오기가 실패해도 마찬가지다.
+document.getElementById('close').addEventListener('click', async () => {
+  try {
+    await saver.flush()
+    if (remember) await remember.flush()
+  } catch (err) {
+    console.error('닫기 전 저장에 실패했습니다', err)
+  }
+  await hideNoteWindow(id)
+})
 
 function applyColor(key) {
   shell.dataset.color = key
@@ -2599,7 +2666,12 @@ function buildSwatches() {
 }
 
 async function boot() {
-  note = await loadNote(id)
+  try {
+    note = await loadNote(id)
+  } catch (err) {
+    showLoadError(err)
+    return
+  }
   buildSwatches()
   applyColor(note.color || DEFAULT_COLOR)
 
@@ -2630,18 +2702,14 @@ async function boot() {
   document.addEventListener('click', () => {
     menu.hidden = true
   })
-  document.getElementById('close').addEventListener('click', async () => {
-    saver.flush()
-    await hideNoteWindow(id)
-  })
 
   // 창 위치·크기는 이동이 끝난 시점에만 저장한다.
   const win = getCurrentWindow()
-  const remember = debounce(async () => {
+  remember = debounce(async () => {
     const pos = await win.outerPosition()
     const size = await win.innerSize()
     note.window = { x: pos.x, y: pos.y, width: size.width, height: size.height, visible: true }
-    saveNote(note).then(flashSaved)
+    return persist()
   }, SAVE_DELAY)
   await win.onMoved(() => remember.call())
   await win.onResized(() => remember.call())
@@ -2655,7 +2723,7 @@ boot()
 - [ ] **Step 13: 전체 테스트 실행**
 
 Run: `npm test`
-Expected: PASS — colors 4 + rules 5 + editor 12 + korean 11 + debounce 5 + title 8 = 45개 통과
+Expected: PASS — colors 4 + rules 5 + editor 12 + korean 11 + debounce 8 + title 8 = 48개 통과
 
 - [ ] **Step 14: 손으로 확인**
 
@@ -3273,7 +3341,7 @@ refresh()
 - [ ] **Step 10: 전체 테스트 실행**
 
 Run: `npm test`
-Expected: PASS — 45 + bubble 6 + preview 7 + search 6 = 64개 통과
+Expected: PASS — 48 + bubble 6 + preview 7 + search 6 = 67개 통과
 
 - [ ] **Step 11: 손으로 확인**
 
@@ -3516,7 +3584,7 @@ git commit -m "feat: 자동 실행, 전역 단축키, 단일 인스턴스"
 - [ ] **Step 1: 자동 테스트 전체 실행**
 
 Run: `npm test`
-Expected: PASS — 64개
+Expected: PASS — 67개
 
 Run: `cd src-tauri && cargo test`
 Expected: PASS — 27개
