@@ -1129,9 +1129,11 @@ pub fn open_list(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// 앱 시작 시 호출한다. 보이는 상태로 저장된 메모를 전부 되살리고,
-/// 메모가 하나도 없으면 빈 메모 하나를 만들어 띄운다.
-/// 앱을 켤 때. 열어둔 채 껐던 메모를 그대로 되살린다 — 책상을 원래대로 돌려놓는 일이다.
+/// 앱을 켤 때 호출한다.
+///
+/// 열어둔 채 껐던 메모를 그대로 되살린다 — 책상을 원래대로 돌려놓는 일이다.
+/// 되살릴 게 없으면 적을 수 있는 빈 메모를 내민다. 이미 비어 있는 메모가
+/// 있으면 그것을 다시 띄우고, 없을 때만 새로 만든다.
 pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
     let notes = load_all(notes_dir);
     let visible: Vec<String> = notes
