@@ -34,7 +34,9 @@
 #cards { flex: 1 1 auto; overflow-y: auto; }
 
 .card {
+  position: relative;
   display: flex;
+  align-items: flex-start;
   gap: 10px;
   padding: 11px 12px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
@@ -89,3 +91,41 @@
   line-height: 1.5;
 }
 #error[hidden] { display: none; }
+
+/*
+ * 삭제 버튼. 마우스를 올렸을 때만 보인다.
+ *
+ * 늘 보이게 두면 메모 수만큼 ×가 늘어서 목록이 시끄러워지고, 메모를 열려다
+ * 잘못 누를 여지도 생긴다. 반대로 우클릭에만 숨겨두면 지울 수 있다는 사실을
+ * 알 방법이 없는데, 이 앱에서는 여기가 메모를 지우는 유일한 곳이다.
+ *
+ * 키보드로 초점이 와도 보여야 한다. 안 그러면 Tab으로 닿았는데 아무것도
+ * 안 보이는 버튼을 누르게 된다.
+ */
+.card-delete {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-left: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--nfj-ink);
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.card:hover .card-delete,
+.card-delete:focus-visible {
+  opacity: 0.55;
+}
+.card-delete:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08);
+}

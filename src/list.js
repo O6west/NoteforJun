@@ -56,24 +56,44 @@ function render() {
     preview.className = 'card-preview'
     preview.textContent = previewText(n.text)
 
+    const label = hasTitle ? n.title : '제목 없는 메모'
+
+    // 마우스를 올렸을 때만 보이는 삭제 버튼.
+    // 우클릭만 두면 지울 수 있다는 사실 자체를 알 방법이 없고, 이 앱에서는
+    // 여기가 메모를 지우는 유일한 곳이라 모르면 영영 못 지운다.
+    // 늘 보이게 두면 메모 수만큼 ×가 늘어서 목록이 시끄러워진다.
+    const remove = document.createElement('button')
+    remove.type = 'button'
+    remove.className = 'card-delete'
+    remove.textContent = '×'
+    remove.title = `"${label}" 삭제`
+    remove.setAttribute('aria-label', `"${label}" 삭제`)
+
     body.append(title, preview)
-    card.append(stripe, body)
+    card.append(stripe, body, remove)
+
+    async function confirmDelete() {
+      if (!confirm(`"${label}" 메모를 삭제할까요?\n되돌릴 수 없습니다.`)) return
+      try {
+        await deleteNote(n.id)
+      } catch (err) {
+        showError('메모를 지우지 못했습니다.', err)
+        return
+      }
+      await refresh()
+    }
 
     card.addEventListener('click', () =>
       openNoteWindow(n.id).catch((err) => showError('메모를 열지 못했습니다.', err)),
     )
-    card.addEventListener('contextmenu', async (e) => {
+    remove.addEventListener('click', (e) => {
+      // 카드 클릭이 같이 일어나면 지우려다 메모가 열린다
+      e.stopPropagation()
+      confirmDelete()
+    })
+    card.addEventListener('contextmenu', (e) => {
       e.preventDefault()
-      const label = hasTitle ? n.title : '제목 없는 메모'
-      if (confirm(`"${label}" 메모를 삭제할까요?\n되돌릴 수 없습니다.`)) {
-        try {
-          await deleteNote(n.id)
-        } catch (err) {
-          showError('메모를 지우지 못했습니다.', err)
-          return
-        }
-        await refresh()
-      }
+      confirmDelete()
     })
 
     cards.appendChild(card)

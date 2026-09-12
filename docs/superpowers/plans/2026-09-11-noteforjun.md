@@ -3395,7 +3395,9 @@ Expected: PASS — 6개 통과
 #cards { flex: 1 1 auto; overflow-y: auto; }
 
 .card {
+  position: relative;
   display: flex;
+  align-items: flex-start;
   gap: 10px;
   padding: 11px 12px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
@@ -3433,6 +3435,44 @@ Expected: PASS — 6개 통과
   opacity: 0.5;
 }
 #empty[hidden] { display: none; }
+
+/*
+ * 삭제 버튼. 마우스를 올렸을 때만 보인다.
+ *
+ * 늘 보이게 두면 메모 수만큼 ×가 늘어서 목록이 시끄러워지고, 메모를 열려다
+ * 잘못 누를 여지도 생긴다. 반대로 우클릭에만 숨겨두면 지울 수 있다는 사실을
+ * 알 방법이 없는데, 이 앱에서는 여기가 메모를 지우는 유일한 곳이다.
+ *
+ * 키보드로 초점이 와도 보여야 한다. 안 그러면 Tab으로 닿았는데 아무것도
+ * 안 보이는 버튼을 누르게 된다.
+ */
+.card-delete {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-left: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--nfj-ink);
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.card:hover .card-delete,
+.card-delete:focus-visible {
+  opacity: 0.55;
+}
+.card-delete:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08);
+}
 ```
 
 `.bar-btn` 규칙은 `note.css`에 있으므로 목록 창에서도 써야 한다. **`note.css`의 `.bar-btn` 블록을 통째로 `src/styles/bar.css`로 옮기고**, `note.js`와 `list.js` 양쪽에서 불러온다. `tokens.css`로 옮기지 않는 이유는 그 파일이 변수와 기본 초기화만 담는 자리이기 때문이다 — 컴포넌트 규칙이 섞이면 한 요소의 스타일이 여러 파일에 흩어지고, 그때부터는 불러오는 순서가 승패를 가른다.
@@ -3442,6 +3482,7 @@ Expected: PASS — 6개 통과
 ```js
 import 'pretendard/dist/web/static/pretendard.css'
 import './styles/tokens.css'
+import './styles/bar.css'
 import './styles/list.css'
 
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -3457,8 +3498,20 @@ installResizeZones()
 const cards = document.getElementById('cards')
 const empty = document.getElementById('empty')
 const search = document.getElementById('search')
+const errorBox = document.getElementById('error')
 
 let all = []
+
+/** 실패는 사라지지 않는 줄로 남긴다. 조용히 넘어가면 사용자는 메모가 없어진 줄 안다. */
+function showError(message, err) {
+  console.error(message, err)
+  errorBox.textContent = message
+  errorBox.hidden = false
+}
+
+function clearError() {
+  errorBox.hidden = true
+}
 
 function render() {
   const shown = filterNotes(all, search.value)
@@ -3485,17 +3538,44 @@ function render() {
     preview.className = 'card-preview'
     preview.textContent = previewText(n.text)
 
-    body.append(title, preview)
-    card.append(stripe, body)
+    const label = hasTitle ? n.title : '제목 없는 메모'
 
-    card.addEventListener('click', () => openNoteWindow(n.id))
-    card.addEventListener('contextmenu', async (e) => {
-      e.preventDefault()
-      const label = hasTitle ? n.title : '제목 없는 메모'
-      if (confirm(`"${label}" 메모를 삭제할까요?\n되돌릴 수 없습니다.`)) {
+    // 마우스를 올렸을 때만 보이는 삭제 버튼.
+    // 우클릭만 두면 지울 수 있다는 사실 자체를 알 방법이 없고, 이 앱에서는
+    // 여기가 메모를 지우는 유일한 곳이라 모르면 영영 못 지운다.
+    // 늘 보이게 두면 메모 수만큼 ×가 늘어서 목록이 시끄러워진다.
+    const remove = document.createElement('button')
+    remove.type = 'button'
+    remove.className = 'card-delete'
+    remove.textContent = '×'
+    remove.title = `"${label}" 삭제`
+    remove.setAttribute('aria-label', `"${label}" 삭제`)
+
+    body.append(title, preview)
+    card.append(stripe, body, remove)
+
+    async function confirmDelete() {
+      if (!confirm(`"${label}" 메모를 삭제할까요?\n되돌릴 수 없습니다.`)) return
+      try {
         await deleteNote(n.id)
-        await refresh()
+      } catch (err) {
+        showError('메모를 지우지 못했습니다.', err)
+        return
       }
+      await refresh()
+    }
+
+    card.addEventListener('click', () =>
+      openNoteWindow(n.id).catch((err) => showError('메모를 열지 못했습니다.', err)),
+    )
+    remove.addEventListener('click', (e) => {
+      // 카드 클릭이 같이 일어나면 지우려다 메모가 열린다
+      e.stopPropagation()
+      confirmDelete()
+    })
+    card.addEventListener('contextmenu', (e) => {
+      e.preventDefault()
+      confirmDelete()
     })
 
     cards.appendChild(card)
@@ -3503,13 +3583,24 @@ function render() {
 }
 
 async function refresh() {
-  all = await listNotes()
+  try {
+    all = await listNotes()
+    clearError()
+  } catch (err) {
+    showError('메모 목록을 불러오지 못했습니다.', err)
+    return
+  }
   render()
 }
 
 search.addEventListener('input', render)
 document.getElementById('new-note').addEventListener('click', async () => {
-  await createNote()
+  try {
+    await createNote()
+  } catch (err) {
+    showError('새 메모를 만들지 못했습니다.', err)
+    return
+  }
   await refresh()
 })
 document.getElementById('close').addEventListener('click', () => getCurrentWindow().hide())
