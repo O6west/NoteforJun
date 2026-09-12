@@ -104,7 +104,9 @@ pub fn open_note(app: &AppHandle, note: &Note) -> tauri::Result<()> {
         .position(note.window.x as f64, note.window.y as f64)
         .decorations(false)
         .resizable(true)
-        .skip_taskbar(true)
+        // 작업표시줄에서 숨기지 않는다. 메모가 여러 개여도 윈도우가 아이콘 하나로
+        // 묶어주므로 지저분해지지 않고, 숨기면 메모 창만 떠 있을 때 앱이
+        // 작업표시줄에서 완전히 사라져 다시 닿을 방법이 없어진다.
         .build()?;
     Ok(())
 }

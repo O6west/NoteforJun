@@ -13,7 +13,7 @@ pub struct WindowState {
 
 impl Default for WindowState {
     fn default() -> Self {
-        Self { x: 48, y: 48, width: 380, height: 420, visible: true }
+        Self { x: 48, y: 48, width: 460, height: 540, visible: true }
     }
 }
 
@@ -79,7 +79,7 @@ mod tests {
     #[test]
     fn window_default_matches_spec() {
         let w = WindowState::default();
-        assert_eq!((w.width, w.height), (380, 420));
+        assert_eq!((w.width, w.height), (460, 540));
         assert!(w.visible);
     }
 }
