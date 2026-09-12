@@ -1,0 +1,35 @@
+:root {
+  --nfj-paper: #fbf8f2;
+  --nfj-ink: #2e2e2c;
+  --nfj-highlight: #f7e27f;
+  --nfj-font: 'Pretendard', 'Malgun Gothic', sans-serif;
+
+  --nfj-body-size: 14px;
+  --nfj-body-line: 1.6;
+  --nfj-h1-size: 19px;
+  --nfj-title-size: 14px;
+  --nfj-preview-size: 12px;
+
+  --nfj-bar-height: 34px;
+  --nfj-radius: 6px;
+}
+
+/* 상단바 색 6종. colors.js의 COLORS와 값이 일치해야 한다. */
+[data-color='yellow'] { --nfj-bar: #e0b84d; --nfj-bar-fg: #3d2f10; }
+[data-color='green']  { --nfj-bar: #7fa86b; --nfj-bar-fg: #ffffff; }
+[data-color='purple'] { --nfj-bar: #a98bc4; --nfj-bar-fg: #ffffff; }
+[data-color='blue']   { --nfj-bar: #6fa3bf; --nfj-bar-fg: #ffffff; }
+[data-color='orange'] { --nfj-bar: #d98c6a; --nfj-bar-fg: #ffffff; }
+[data-color='gray']   { --nfj-bar: #9a9a94; --nfj-bar-fg: #ffffff; }
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: var(--nfj-font);
+  color: var(--nfj-ink);
+  background: transparent;
+  overflow: hidden;
+}

@@ -1,0 +1,195 @@
+#shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--nfj-paper);
+  border-radius: var(--nfj-radius);
+  overflow: hidden;
+}
+
+#titlebar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: var(--nfj-bar-height);
+  padding: 0 8px;
+  background: var(--nfj-bar);
+  color: var(--nfj-bar-fg);
+  user-select: none;
+}
+
+/*
+ * 창을 끌기 위한 손잡이.
+ * 제목칸 위에 겹쳐 떠 있어 제목 폭을 전혀 뺏지 않는다. 제목을 20자까지
+ * 꽉 채워도 잡을 곳이 사라지지 않는 것이 이 요소가 존재하는 이유다.
+ * 보이는 선은 40px이지만 실제로 잡히는 영역은 56px로 넉넉히 둔다.
+ */
+#grabber {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  /* 크기 조절 영역(100)보다 위. 겹치는 자리에서는 끌기가 먼저 잡혀야 한다. */
+  z-index: 101;
+  width: 56px;
+  height: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+}
+#grabber:active {
+  cursor: grabbing;
+}
+#grabber i {
+  display: block;
+  width: 40px;
+  height: 3px;
+  border-radius: 2px;
+  /* 상단바 글자색을 그대로 쓰므로 6색 어디서나 알아서 어울린다 */
+  background: currentColor;
+  opacity: 0.38;
+}
+
+#title {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: var(--nfj-title-size);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  outline: none;
+}
+#title::placeholder { color: inherit; opacity: 0.45; font-weight: 500; }
+
+#editor {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 11px 12px 20px;
+  font-size: var(--nfj-body-size);
+  line-height: var(--nfj-body-line);
+}
+#editor .ProseMirror { outline: none; min-height: 100%; }
+#editor p { margin: 0; }
+#editor h1 { margin: 0 0 5px; font-size: var(--nfj-h1-size); font-weight: 700; }
+#editor mark { background: var(--nfj-highlight); border-radius: 2px; padding: 0 2px; color: inherit; }
+
+#editor ul[data-type='taskList'] { list-style: none; margin: 0; padding: 0; }
+#editor ul[data-type='taskList'] li { display: flex; align-items: flex-start; gap: 7px; }
+#editor ul[data-type='taskList'] li > label { flex: 0 0 auto; padding-top: 3px; }
+#editor ul[data-type='taskList'] li > div { flex: 1 1 auto; min-width: 0; }
+#editor ul[data-type='taskList'] li[data-checked='true'] > div {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+/* 빈 문서일 때만 안내 문구를 보여준다 */
+#editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+/*
+ * 자동 저장 표시. 저장이 끝나면 잠깐 떴다가 스르르 사라진다.
+ * 자리를 항상 차지하는 이유는, 나타날 때마다 제목칸 폭이 들썩이면
+ * 글을 쓰는 동안 눈에 거슬리기 때문이다. 안 보일 뿐 자리는 늘 있다.
+ */
+#saved {
+  flex: 0 0 auto;
+  width: 14px;
+  font-size: 12px;
+  line-height: 1;
+  text-align: center;
+  color: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.55s ease;
+}
+#saved.show {
+  opacity: 0.7;
+  transition: opacity 0.12s ease;
+}
+/* 저장에 실패하면 사라지지 않는다. 사라지는 경고는 아무도 못 본다. */
+#saved.warn {
+  opacity: 0.95;
+  transition: none;
+}
+
+#menu {
+  position: absolute;
+  top: calc(var(--nfj-bar-height) + 4px);
+  right: 8px;
+  z-index: 10;
+  padding: 8px;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+}
+#menu[hidden] { display: none; }
+
+#swatches { display: flex; gap: 6px; margin-bottom: 8px; }
+.swatch {
+  width: 22px;
+  height: 22px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+}
+.swatch[aria-pressed='true'] { border-color: #2e2e2c; }
+
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--nfj-ink);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-item:hover { background: rgba(0, 0, 0, 0.06); }
+
+#bubble {
+  position: absolute;
+  /* 크기 조절 영역(100)과 상단바 버튼(101)보다 위. 겹치는 자리에서는
+     서식 적용이 먼저 잡혀야 한다 — 형광펜은 이 팝업 말고 입구가 없다. */
+  z-index: 102;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 5px;
+  background: #2e2e2c;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+}
+#bubble[hidden] { display: none; }
+
+#bubble button {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #f2f0ea;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+#bubble button:hover { background: rgba(255, 255, 255, 0.16); }
+#bubble button[aria-pressed='true'] { background: rgba(255, 255, 255, 0.3); }
+#bubble button[data-mark='italic'] { font-style: italic; }
+#bubble button[data-mark='bold'] { font-weight: 700; }
+#bubble button[data-mark='underline'] { text-decoration: underline; }

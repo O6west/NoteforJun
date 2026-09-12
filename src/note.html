@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>NoteforJun</title>
+  </head>
+  <body>
+    <div id="shell" data-color="yellow">
+      <div id="titlebar" data-tauri-drag-region>
+        <div id="grabber" data-tauri-drag-region title="끌어서 옮기기"><i></i></div>
+        <button class="bar-btn" id="new-note" title="새 메모 (Ctrl+Alt+N)">+</button>
+        <input id="title" type="text" maxlength="20" placeholder="제목" spellcheck="false" />
+        <span id="saved" aria-hidden="true">✓</span>
+        <button class="bar-btn" id="menu-btn" title="메뉴">⋯</button>
+        <button class="bar-btn" id="close" title="닫기">×</button>
+      </div>
+      <div id="editor"></div>
+      <div id="menu" hidden>
+        <div id="swatches"></div>
+        <button class="menu-item" id="open-list">모든 메모 보기</button>
+      </div>
+    </div>
+    <script type="module" src="./note.js"></script>
+  </body>
+</html>

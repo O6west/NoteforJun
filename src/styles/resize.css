@@ -1,0 +1,20 @@
+/*
+ * 창 크기 조절 영역. 눈에는 보이지 않고 손에만 걸린다.
+ * 창 테두리를 껐기 때문에 OS가 주던 리사이즈 테두리가 없어서 직접 두른다.
+ * 가장자리 8px / 모서리 20px — 모서리를 넓게 잡는 이유는 사람이 주로 모서리를
+ * 노리기 때문이고, 가장자리를 더 넓히면 본문 첫 글자를 클릭하려다 크기가 바뀐다.
+ *
+ * 층위는 100이다. 이보다 위에 있어야 하는 것(상단바 버튼, 창 이동 손잡이)은
+ * 각자의 파일에서 101을 준다. 여기서 남의 선택자를 건드리지 않는다 —
+ * 한 요소의 스타일이 두 파일에 흩어지면 불러오는 순서가 승패를 가르게 되고,
+ * 그 순서는 코드 어디에도 적혀 있지 않다.
+ */
+.resize-zone { position: fixed; z-index: 100; }
+.resize-n  { top: 0; left: 20px; right: 20px; height: 8px; cursor: ns-resize; }
+.resize-s  { bottom: 0; left: 20px; right: 20px; height: 8px; cursor: ns-resize; }
+.resize-w  { left: 0; top: 20px; bottom: 20px; width: 8px; cursor: ew-resize; }
+.resize-e  { right: 0; top: 20px; bottom: 20px; width: 8px; cursor: ew-resize; }
+.resize-nw { top: 0; left: 0; width: 20px; height: 20px; cursor: nwse-resize; }
+.resize-ne { top: 0; right: 0; width: 20px; height: 20px; cursor: nesw-resize; }
+.resize-sw { bottom: 0; left: 0; width: 20px; height: 20px; cursor: nesw-resize; }
+.resize-se { bottom: 0; right: 0; width: 20px; height: 20px; cursor: nwse-resize; }
