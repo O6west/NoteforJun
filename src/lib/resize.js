@@ -2,9 +2,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 
 const ZONES = [
   { dir: 'NorthWest', cls: 'nw' },
-  // 위쪽은 하나가 아니라 둘이다. 가운데를 비워 손잡이와 커서가 겹치지 않게 한다.
-  { dir: 'North', cls: 'n-l' },
-  { dir: 'North', cls: 'n-r' },
+  { dir: 'North', cls: 'n' },
   { dir: 'NorthEast', cls: 'ne' },
   { dir: 'West', cls: 'w' },
   { dir: 'East', cls: 'e' },

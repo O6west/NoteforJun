@@ -1521,10 +1521,7 @@ html, body {
  * 노리기 때문이고, 가장자리를 더 넓히면 본문 첫 글자를 클릭하려다 크기가 바뀐다.
  */
 .resize-zone { position: fixed; z-index: 100; }
-/* 위쪽만 둘로 나눠 가운데 60px을 비운다. 그 자리에 창을 끄는 손잡이가 있어서,
-   비워두지 않으면 손잡이 위에서 크기 조절 커서가 겹쳐 뜬다. */
-.resize-n-l { top: 0; left: 20px; right: calc(50% + 30px); height: 8px; cursor: ns-resize; }
-.resize-n-r { top: 0; left: calc(50% + 30px); right: 20px; height: 8px; cursor: ns-resize; }
+.resize-n  { top: 0; left: 20px; right: 20px; height: 8px; cursor: ns-resize; }
 .resize-s  { bottom: 0; left: 20px; right: 20px; height: 8px; cursor: ns-resize; }
 .resize-w  { left: 0; top: 20px; bottom: 20px; width: 8px; cursor: ew-resize; }
 .resize-e  { right: 0; top: 20px; bottom: 20px; width: 8px; cursor: ew-resize; }
@@ -1545,9 +1542,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 
 const ZONES = [
   { dir: 'NorthWest', cls: 'nw' },
-  // 위쪽은 하나가 아니라 둘이다. 가운데를 비워 손잡이와 커서가 겹치지 않게 한다.
-  { dir: 'North', cls: 'n-l' },
-  { dir: 'North', cls: 'n-r' },
+  { dir: 'North', cls: 'n' },
   { dir: 'NorthEast', cls: 'ne' },
   { dir: 'West', cls: 'w' },
   { dir: 'East', cls: 'e' },
