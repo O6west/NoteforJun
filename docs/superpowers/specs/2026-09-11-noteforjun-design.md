@@ -193,7 +193,7 @@ NoteforJun은 **스티키 노트를 베이스로 이 네 가지만 채우고, �
 |---|---|---|---|
 | 본문 | Pretendard | 14px | 400 |
 | 큰 글씨 (`# `) | Pretendard | 19px | 700 |
-| 제목 (상단바) | Pretendard | 13px | 600 |
+| 제목 (상단바) | Pretendard | 14px | 600 |
 | 목록 카드 제목 | Pretendard | 13px | 600 |
 | 목록 카드 미리보기 | Pretendard | 12px | 400 |
 

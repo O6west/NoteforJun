@@ -15,6 +15,7 @@ import {
 import { COLORS, DEFAULT_COLOR } from './lib/colors.js'
 import { debounce } from './lib/debounce.js'
 import { installResizeZones } from './lib/resize.js'
+import { serialize } from './lib/serialize.js'
 import { clampTitle } from './lib/title.js'
 
 const SAVE_DELAY = 500
@@ -33,6 +34,8 @@ let remember = null
 
 const savedMark = document.getElementById('saved')
 let savedTimer = null
+let lastSaveFailed = false
+let closeHeld = false
 
 /**
  * 저장이 끝났다는 표시를 잠깐 띄운다.
@@ -40,6 +43,8 @@ let savedTimer = null
  * 그렇다고 늘 띄워두면 잔소리가 된다. 그래서 떴다가 스스로 사라진다.
  */
 function flashSaved() {
+  lastSaveFailed = false
+  closeHeld = false
   savedMark.textContent = '✓'
   savedMark.title = ''
   savedMark.classList.remove('warn')
@@ -51,6 +56,7 @@ function flashSaved() {
 /** 저장 실패는 사라지지 않는 경고로 남긴다. 글이 날아가는 것이 이 앱 최악의 사고다. */
 function showSaveError(err) {
   console.error('메모를 저장하지 못했습니다', err)
+  lastSaveFailed = true
   clearTimeout(savedTimer)
   savedMark.textContent = '⚠'
   savedMark.title = '저장하지 못했습니다. 창을 닫지 말고 글을 복사해 두세요.'
@@ -68,22 +74,32 @@ function showLoadError(err) {
   savedMark.classList.add('show', 'warn')
 }
 
+/** 저장은 한 번에 하나씩만 나간다. 겹치면 오래된 결과가 최신 결과를 덮는다. */
+const saveInOrder = serialize((n) => saveNote(n))
+
 /** 저장하는 유일한 통로. 성공하면 표시를 띄우고, 실패하면 경고를 남긴다. */
 function persist() {
   if (!note) return Promise.resolve()
-  return saveNote(note).then(flashSaved, showSaveError)
+  return saveInOrder(note).then(flashSaved, showSaveError)
 }
 
 const saver = debounce(() => persist(), SAVE_DELAY)
 
 // 무슨 일이 있어도 창은 닫을 수 있어야 한다. 불러오기가 실패해도 마찬가지다.
 document.getElementById('close').addEventListener('click', async () => {
-  try {
-    await saver.flush()
-    if (remember) await remember.flush()
-  } catch (err) {
-    console.error('닫기 전 저장에 실패했습니다', err)
+  await saver.flush()
+  if (remember) await remember.flush()
+
+  // 저장이 실패했는데 창을 숨기면 경고를 볼 수 없고 글도 잃는다.
+  // 한 번은 붙잡아 두고, 그래도 닫겠다면 그때는 닫아준다 —
+  // 창 테두리가 없어 × 말고는 닫을 방법이 없으므로 영영 가둘 수는 없다.
+  if (lastSaveFailed && !closeHeld) {
+    closeHeld = true
+    savedMark.title =
+      '저장하지 못했습니다. 글을 복사해 두세요. ×를 한 번 더 누르면 저장하지 않고 닫습니다.'
+    return
   }
+
   await hideNoteWindow(id)
 })
 

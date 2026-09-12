@@ -1487,7 +1487,7 @@ Expected: PASS — 4개 통과
   --nfj-body-size: 14px;
   --nfj-body-line: 1.72;
   --nfj-h1-size: 19px;
-  --nfj-title-size: 13px;
+  --nfj-title-size: 14px;
   --nfj-preview-size: 12px;
 
   --nfj-bar-height: 34px;
@@ -1655,8 +1655,8 @@ export function installResizeZones(container = document.body) {
   position: relative;
   z-index: 101;
   flex: 0 0 auto;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1664,7 +1664,7 @@ export function installResizeZones(container = document.body) {
   border-radius: 3px;
   background: transparent;
   color: inherit;
-  font-size: 15px;
+  font-size: 17px;
   line-height: 1;
   cursor: pointer;
   opacity: 0.8;
