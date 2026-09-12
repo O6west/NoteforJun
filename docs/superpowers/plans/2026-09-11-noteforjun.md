@@ -2054,18 +2054,162 @@ describe('지원하지 않는 서식', () => {
 })
 ```
 
-- [ ] **Step 9: 테스트 실행**
+- [ ] **Step 9: 한글 입력 테스트 작성**
 
-Run: `npm test -- editor`
-Expected: PASS — 12개 통과
+한글은 이 앱에서 가장 많이 쓰일 문자인데 가장 깨지기 쉬운 지점이기도 하다. 자동으로 검증할 수 있는 것과 없는 것을 정직하게 갈라서, 가능한 것은 전부 테스트로 붙든다.
+
+`src/editor/korean.test.js`:
+
+```js
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { typeText } from '../../test/helpers.js'
+import { createEditor } from './editor.js'
+
+let editor
+let element
+
+/**
+ * 한글 조합 입력을 흉내낸다.
+ *
+ * 솔직히 말해 이것은 진짜 IME가 아니다. jsdom에는 IME가 없어서, 브라우저가
+ * 조합 중에 DOM을 고쳐 쓰는 단계는 재현할 수 없다. 여기서 실제로 검증하는 것은
+ * "조합 이벤트가 오가는 동안 편집기가 글자를 잃거나 구조를 망가뜨리지 않는가"다.
+ * 조합 중 글자가 화면에 어떻게 그려지는지, 커서가 튀지 않는지는 사람이 봐야 하며
+ * 그 항목들은 Task 10 수동 체크리스트에 있다.
+ */
+function compose(ed, steps, final) {
+  const { view } = ed
+  view.dom.dispatchEvent(new CompositionEvent('compositionstart', { data: '' }))
+  for (const s of steps) {
+    view.dom.dispatchEvent(new CompositionEvent('compositionupdate', { data: s }))
+  }
+  view.dom.dispatchEvent(new CompositionEvent('compositionend', { data: final }))
+  const { from, to } = view.state.selection
+  view.dispatch(view.state.tr.insertText(final, from, to))
+}
+
+/** '한글' 두 글자를 자모 단계까지 흉내내어 친다 */
+function typeHangul(ed) {
+  compose(ed, ['ㅎ', '하', '한'], '한')
+  compose(ed, ['ㄱ', '그', '글'], '글')
+}
+
+beforeEach(() => {
+  element = document.createElement('div')
+  document.body.appendChild(element)
+  editor = createEditor({ element, content: '' })
+})
+
+afterEach(() => {
+  editor.destroy()
+  element.remove()
+})
+
+describe('한글 조합 입력', () => {
+  it('조합이 끝나면 완성된 글자가 남는다', () => {
+    typeHangul(editor)
+    expect(editor.getText()).toBe('한글')
+  })
+
+  it('조합을 반복해도 앞 글자가 지워지지 않는다', () => {
+    for (const s of ['가', '나', '다', '라', '마']) {
+      compose(editor, [s], s)
+    }
+    expect(editor.getText()).toBe('가나다라마')
+  })
+
+  it('한글과 영문·숫자를 섞어도 순서가 보존된다', () => {
+    typeText(editor, 'A')
+    compose(editor, ['ㄱ', '가'], '가')
+    typeText(editor, '1')
+    compose(editor, ['ㄴ', '나'], '나')
+    expect(editor.getText()).toBe('A가1나')
+  })
+})
+
+describe('한글과 서식', () => {
+  it('큰 글씨 안에서 한글을 쳐도 큰 글씨가 유지된다', () => {
+    typeText(editor, '# ')
+    typeHangul(editor)
+    expect(editor.getHTML()).toContain('<h1>한글</h1>')
+  })
+
+  it('체크박스 안에서 한글을 쳐도 체크박스가 유지된다', () => {
+    typeText(editor, '- ')
+    typeHangul(editor)
+    const html = editor.getHTML()
+    expect(html).toContain('data-type="taskList"')
+    expect(html).toContain('한글')
+  })
+
+  it('체크박스에서 Enter를 눌러도 앞 항목의 한글이 남는다', () => {
+    typeText(editor, '- ')
+    typeHangul(editor)
+    editor.commands.splitListItem('taskItem')
+    compose(editor, ['ㄷ', '두'], '두')
+    const text = editor.getText()
+    expect(text).toContain('한글')
+    expect(text).toContain('두')
+  })
+
+  it('한글에 굵게가 적용된다', () => {
+    typeHangul(editor)
+    editor.commands.selectAll()
+    editor.commands.toggleBold()
+    expect(editor.getHTML()).toContain('<strong>한글</strong>')
+  })
+
+  it('한글에 형광펜이 적용된다', () => {
+    typeHangul(editor)
+    editor.commands.selectAll()
+    editor.commands.toggleHighlight()
+    expect(editor.getHTML()).toContain('<mark>한글</mark>')
+  })
+
+  it('한글 일부에만 서식을 걸 수 있다', () => {
+    compose(editor, ['ㄱ', '가'], '가')
+    compose(editor, ['ㄴ', '나'], '나')
+    compose(editor, ['ㄷ', '다'], '다')
+    // '나'만 선택 — 문서 시작이 1이므로 2~3이 두 번째 글자다
+    editor.commands.setTextSelection({ from: 2, to: 3 })
+    editor.commands.toggleHighlight()
+    expect(editor.getHTML()).toContain('가<mark>나</mark>다')
+  })
+})
+
+describe('저장되는 형태', () => {
+  it('한글이 HTML 엔티티로 바뀌지 않고 그대로 저장된다', () => {
+    typeHangul(editor)
+    const html = editor.getHTML()
+    expect(html).toContain('한글')
+    expect(html).not.toContain('&#')
+  })
+
+  it('저장된 HTML을 다시 불러와도 한글이 그대로다', () => {
+    typeHangul(editor)
+    const saved = editor.getHTML()
+    const el2 = document.createElement('div')
+    document.body.appendChild(el2)
+    const editor2 = createEditor({ element: el2, content: saved })
+    expect(editor2.getText()).toBe('한글')
+    editor2.destroy()
+    el2.remove()
+  })
+})
+```
+
+- [ ] **Step 10: 테스트 실행**
+
+Run: `npm test -- editor korean rules`
+Expected: PASS — editor 12개 + korean 10개 + rules 5개 = 27개 통과
 
 만약 `Range`나 `getClientRects` 관련 오류가 난다면 `test/setup.js`(Task 4 Step 1)가 제대로 로드되는지 확인한다. 특정 테스트가 jsdom 한계로 끝내 돌지 않으면 **테스트를 약화시키지 말고** 해당 항목을 Task 10 수동 체크리스트로 옮기고 그 사유를 주석으로 남긴다.
 
-- [ ] **Step 10: 커밋**
+- [ ] **Step 11: 커밋**
 
 ```bash
 git add src/editor test/helpers.js test/setup.js vitest.config.js
-git commit -m "feat: Tiptap 편집기와 입력 규칙 (# / - / [])"
+git commit -m "feat: Tiptap 편집기와 입력 규칙, 한글 입력 테스트"
 ```
 
 ---
@@ -2227,6 +2371,19 @@ describe('clampTitle', () => {
     expect(clampTitle(null)).toBe('')
     expect(clampTitle(undefined)).toBe('')
   })
+
+  it('한글도 20자까지만 들어간다', () => {
+    // 요즘 윈도우 IME는 '한'을 완성형 한 글자(U+D55C)로 준다. 여기까지는 문제없다.
+    expect(clampTitle('한'.repeat(30))).toBe('한'.repeat(20))
+  })
+
+  it('조합용 낱자로 들어온 한글은 코드 단위로 센다 (현재 동작을 못박아 둔다)', () => {
+    // 옛 방식의 조합용 낱자(ᄒ+ᅡ+ᆫ)는 눈에 한 글자로 보이지만 코드 단위로는 셋이라
+    // 20자 제한에 더 적게 들어간다. 흔치 않지만 나중에 바뀌면 알아차리도록 적어 둔다.
+    const jamo = '\u1112\u1161\u11AB'
+    expect(jamo).toHaveLength(3)
+    expect(clampTitle(jamo.repeat(10))).toHaveLength(20)
+  })
 })
 ```
 
@@ -2253,7 +2410,7 @@ export function clampTitle(value) {
 - [ ] **Step 8: 테스트 통과 확인**
 
 Run: `npm test -- title`
-Expected: PASS — 6개 통과
+Expected: PASS — 8개 통과
 
 - [ ] **Step 9: `api.js` 작성**
 
@@ -3359,11 +3516,37 @@ Expected: `src-tauri/target/release/bundle/msi/` 아래에 `.msi`가 생긴다. 
 - [ ] (추가) `## `를 쳐도 아무 일이 일어나지 않는다
 
 ## 한글 입력 — 자동화 불가, 반드시 손으로 확인
-- [ ] 8. `ㅎ` → `하` → `한`처럼 조합하는 도중 서식이 깨지거나 커서가 튀지 않는다
-- [ ] 9. 한글 조합 중 자동 저장이 일어나도 글자가 유실되지 않는다
-      확인법: 한 글자를 조합하다 멈추고 1초 기다린 뒤 이어서 친다
-- [ ] (추가) 체크박스 항목 안에서 한글을 쳐도 동일하게 동작한다
-- [ ] (추가) 제목 칸에서 한글을 조합해 20자를 채워도 21번째가 들어가지 않는다
+
+`src/editor/korean.test.js`가 "조합이 끝난 뒤 글자와 구조가 온전한가"는 이미 검증한다.
+아래는 그 테스트가 원리적으로 확인할 수 없는 것들이다 — jsdom에는 IME가 없어서
+조합 **도중**의 화면과 커서는 실제로 쳐 봐야만 알 수 있다.
+
+### 조합 중 화면
+- [ ] 8. `ㅎ` → `하` → `한` 조합 도중 글자가 깜빡이거나 커서가 튀지 않는다
+- [ ] 조합 도중 글자가 두 번 나타났다 사라지는 현상이 없다
+- [ ] 백스페이스로 `한` → `하` → `ㅎ` 순으로 낱자가 하나씩 지워진다
+- [ ] 조합 중 방향키를 눌러도 글자가 깨지지 않는다
+- [ ] 한자 변환(한글 입력 후 한자 키)이 동작하고, 변환 후 서식이 유지된다
+
+### 조합 중 자동 저장 — 글이 날아가면 가장 치명적인 지점
+- [ ] 9. 한 글자를 조합하다 멈추고 1초 기다린 뒤 이어서 쳐도 글자가 유실되지 않는다
+- [ ] 조합 도중 창을 옮겨도(그때도 저장이 일어난다) 글자가 유실되지 않는다
+- [ ] 조합 도중 `×`로 창을 닫았다 다시 열면, 조합하던 글자까지 남아 있다
+
+### 서식과 함께
+- [ ] 큰 글씨(`# `) 줄에서 한글을 쳐도 크기가 유지된다
+- [ ] 체크박스 안에서 한글을 치고 Enter를 눌러도 앞 항목의 한글이 남는다
+- [ ] 한글을 드래그하면 `B I U ✏` 팝업이 뜨고, 형광펜이 글자에 정확히 걸린다
+- [ ] 한글 한 글자만 드래그해서 서식을 걸어도 앞뒤 글자가 영향받지 않는다
+
+### 제목 칸
+- [ ] 제목 칸에서 한글을 조합해 20자를 채우면 21번째가 들어가지 않는다
+- [ ] 20번째 글자를 조합하는 도중에 잘려서 낱자만 남는 일이 없다
+- [ ] 한글 제목이 목록 창에서 온전히 보인다
+
+### 저장 파일
+- [ ] 저장 폴더의 JSON을 메모장으로 열었을 때 한글이 깨지지 않는다
+- [ ] 앱을 껐다 켜도 한글이 그대로다 (인코딩 왕복 확인)
 
 ## 저장과 복원
 - [ ] 10. 메모를 쓰는 도중 작업 관리자로 강제 종료해도 0.5초 이전까지 쓴 글이 남아 있다
