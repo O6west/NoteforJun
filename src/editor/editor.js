@@ -14,6 +14,13 @@ export function createEditor({ element, content = '', onUpdate = () => {} }) {
     element,
     content,
     extensions: buildExtensions(),
+    editorProps: {
+      attributes: {
+        // 맞춤법 검사를 끈다. 한글에서는 멀쩡한 문장에도 빨간 줄이 잔뜩 그어져
+        // 메모가 지저분해 보이기만 하고, 고쳐주는 것도 없다.
+        spellcheck: 'false',
+      },
+    },
     onUpdate: ({ editor }) => onUpdate(editor.getHTML()),
   })
 }

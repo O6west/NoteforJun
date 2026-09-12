@@ -99,3 +99,10 @@ describe('지원하지 않는 서식', () => {
     expect(editor.schema.marks.strike).toBeUndefined()
   })
 })
+
+describe('편집기 설정', () => {
+  it('맞춤법 빨간 줄을 끄고 시작한다', () => {
+    // 한글에서는 멀쩡한 문장에도 빨간 줄이 잔뜩 그어진다
+    expect(editor.view.dom.getAttribute('spellcheck')).toBe('false')
+  })
+})

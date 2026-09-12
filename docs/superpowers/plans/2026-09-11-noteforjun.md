@@ -1761,7 +1761,7 @@ export function installResizeZones(container = document.body) {
       <div id="titlebar" data-tauri-drag-region>
         <div id="grabber" data-tauri-drag-region title="끌어서 옮기기"><i></i></div>
         <button class="bar-btn" id="new-note" title="새 메모 (Ctrl+Alt+N)">+</button>
-        <input id="title" type="text" maxlength="20" placeholder="제목" />
+        <input id="title" type="text" maxlength="20" placeholder="제목" spellcheck="false" />
         <span id="saved" aria-hidden="true">✓</span>
         <button class="bar-btn" id="menu-btn" title="메뉴">⋯</button>
         <button class="bar-btn" id="close" title="닫기">×</button>
@@ -1946,6 +1946,13 @@ export function createEditor({ element, content = '', onUpdate = () => {} }) {
     element,
     content,
     extensions: buildExtensions(),
+    editorProps: {
+      attributes: {
+        // 맞춤법 검사를 끈다. 한글에서는 멀쩡한 문장에도 빨간 줄이 잔뜩 그어져
+        // 메모가 지저분해 보이기만 하고, 고쳐주는 것도 없다.
+        spellcheck: 'false',
+      },
+    },
     onUpdate: ({ editor }) => onUpdate(editor.getHTML()),
   })
 }
@@ -2240,7 +2247,7 @@ describe('저장되는 형태', () => {
 - [ ] **Step 10: 테스트 실행**
 
 Run: `npm test -- editor korean rules`
-Expected: PASS — editor 12개 + korean 11개 + rules 5개 = 28개 통과
+Expected: PASS — editor 13개 + korean 11개 + rules 5개 = 29개 통과
 
 만약 `Range`나 `getClientRects` 관련 오류가 난다면 `test/setup.js`(Task 4 Step 1)가 제대로 로드되는지 확인한다. 특정 테스트가 jsdom 한계로 끝내 돌지 않으면 **테스트를 약화시키지 말고** 해당 항목을 Task 10 수동 체크리스트로 옮기고 그 사유를 주석으로 남긴다.
 
@@ -2849,7 +2856,7 @@ boot()
 - [ ] **Step 13: 전체 테스트 실행**
 
 Run: `npm test`
-Expected: PASS — colors 4 + rules 5 + editor 12 + korean 11 + debounce 8 + title 8 + serialize 4 = 52개 통과
+Expected: PASS — colors 4 + rules 5 + editor 13 + korean 11 + debounce 8 + title 8 + serialize 4 = 53개 통과
 
 - [ ] **Step 14: 손으로 확인**
 
@@ -3505,7 +3512,7 @@ refresh()
 - [ ] **Step 10: 전체 테스트 실행**
 
 Run: `npm test`
-Expected: PASS — 52 + bubble 12 + preview 7 + search 6 = 77개 통과
+Expected: PASS — 53 + bubble 12 + preview 7 + search 6 = 78개 통과
 
 - [ ] **Step 11: 손으로 확인**
 
@@ -3748,7 +3755,7 @@ git commit -m "feat: 자동 실행, 전역 단축키, 단일 인스턴스"
 - [ ] **Step 1: 자동 테스트 전체 실행**
 
 Run: `npm test`
-Expected: PASS — 77개
+Expected: PASS — 78개
 
 Run: `cd src-tauri && cargo test`
 Expected: PASS — 27개
