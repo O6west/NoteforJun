@@ -73,6 +73,11 @@ pub fn save_note(note: Note, paths: State<AppPaths>) -> Result<(), String> {
     storage::save(&paths.notes, &note).map_err(|e| e.to_string())
 }
 
+/// 메모 폴더 경로. async 명령에서 State 인자를 피하기 위한 헬퍼다.
+fn notes_dir(app: &AppHandle) -> std::path::PathBuf {
+    app.state::<AppPaths>().notes.clone()
+}
+
 /// 단축키 핸들러처럼 State를 쓸 수 없는 곳에서도 부를 수 있도록 AppHandle만 받는다.
 pub fn create_note_with(app: &AppHandle) -> Result<String, String> {
     let notes = {
@@ -93,31 +98,43 @@ pub fn create_note_with(app: &AppHandle) -> Result<String, String> {
     Ok(note.id)
 }
 
+/// 창을 만들거나 여닫는 명령은 반드시 async 여야 한다.
+///
+/// Tauri 문서가 명시한다 — 윈도우에서 WebviewWindowBuilder는 **동기 명령이나
+/// 이벤트 핸들러 안에서 쓰면 교착한다**. 실제로 이 앱도 + 버튼과 목록 열기를
+/// 누르면 흰 창이 뜨고 앱 전체가 멈췄다. setup 안에서 만드는 창만 멀쩡했는데,
+/// 거기가 문서에서 안전하다고 못박은 유일한 자리이기 때문이다.
+///
+/// State 대신 app.state()를 쓰는 것도 같은 이유다 — async 명령에서 State를
+/// 인자로 받으려면 수명 표기가 붙고, 그 가드를 들고 다닐 이유가 없다.
 #[tauri::command]
-pub fn create_note(app: AppHandle) -> Result<String, String> {
+pub async fn create_note(app: AppHandle) -> Result<String, String> {
     create_note_with(&app)
 }
 
 #[tauri::command]
-pub fn delete_note(id: String, app: AppHandle, paths: State<AppPaths>) -> Result<(), String> {
+pub async fn delete_note(id: String, app: AppHandle) -> Result<(), String> {
+    let notes = notes_dir(&app);
     windows::close_note(&app, &id).map_err(|e| e.to_string())?;
-    storage::delete(&paths.notes, &id).map_err(|e| e.to_string())
+    storage::delete(&notes, &id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn open_note_window(id: String, app: AppHandle, paths: State<AppPaths>) -> Result<(), String> {
-    let mut note = storage::load(&paths.notes, &id).map_err(|e| e.to_string())?;
+pub async fn open_note_window(id: String, app: AppHandle) -> Result<(), String> {
+    let notes = notes_dir(&app);
+    let mut note = storage::load(&notes, &id).map_err(|e| e.to_string())?;
     note.window.visible = true;
-    storage::save(&paths.notes, &note).map_err(|e| e.to_string())?;
+    storage::save(&notes, &note).map_err(|e| e.to_string())?;
     windows::open_note(&app, &note).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn hide_note_window(id: String, app: AppHandle, paths: State<AppPaths>) -> Result<(), String> {
+pub async fn hide_note_window(id: String, app: AppHandle) -> Result<(), String> {
+    let notes = notes_dir(&app);
     // 파일을 못 읽어도 창은 닫혀야 한다. 메모 창에는 OS 테두리가 없어서
     // × 가 안 먹으면 그 창을 없앨 방법이 아예 없다. 기록을 고치는 것은
     // 읽을 수 있을 때만 하는 부수적인 일로 둔다.
-    let Ok(note) = storage::load(&paths.notes, &id) else {
+    let Ok(note) = storage::load(&notes, &id) else {
         return windows::hide_note(&app, &id).map_err(|e| e.to_string());
     };
 
@@ -126,18 +143,18 @@ pub fn hide_note_window(id: String, app: AppHandle, paths: State<AppPaths>) -> R
     // 목록까지 가야 없앨 수 있어 더 성가시다.
     if windows::is_blank(&note) {
         windows::close_note(&app, &id).map_err(|e| e.to_string())?;
-        return storage::delete(&paths.notes, &id).map_err(|e| e.to_string());
+        return storage::delete(&notes, &id).map_err(|e| e.to_string());
     }
 
     let mut note = note;
     note.window.visible = false;
-    let saved = storage::save(&paths.notes, &note);
+    let saved = storage::save(&notes, &note);
     windows::hide_note(&app, &id).map_err(|e| e.to_string())?;
     saved.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn open_list_window(app: AppHandle) -> Result<(), String> {
+pub async fn open_list_window(app: AppHandle) -> Result<(), String> {
     windows::open_list(&app).map_err(|e| e.to_string())
 }
 

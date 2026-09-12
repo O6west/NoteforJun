@@ -15,11 +15,16 @@ pub fn run() {
         // 아이콘을 눌렀다는 것은 무언가 적을 자리를 달라는 뜻이지
         // 어제 보던 것을 다시 보자는 뜻이 아니다. 목록은 메모 창의 ⋯ 메뉴에서 연다.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            let notes = {
-                let paths = app.state::<AppPaths>();
-                paths.notes.clone()
-            };
-            let _ = windows::open_blank(app, &notes);
+            // 창 만들기는 반드시 별도 스레드에서. Tauri 문서가 명시하듯 윈도우에서
+            // 이벤트 핸들러 안에서 창을 만들면 교착한다 — 앱 전체가 멈춘다.
+            let app = app.clone();
+            std::thread::spawn(move || {
+                let notes = {
+                    let paths = app.state::<AppPaths>();
+                    paths.notes.clone()
+                };
+                let _ = windows::open_blank(&app, &notes);
+            });
         }))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -73,7 +78,11 @@ fn register_shortcut(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::E
         tauri_plugin_global_shortcut::Builder::new()
             .with_handler(move |_app, sc, event| {
                 if sc == &hotkey && event.state() == ShortcutState::Pressed {
-                    let _ = commands::create_note_with(&handle);
+                    // 여기도 이벤트 핸들러다. 창 만들기를 여기서 바로 하면 교착한다.
+                    let handle = handle.clone();
+                    std::thread::spawn(move || {
+                        let _ = commands::create_note_with(&handle);
+                    });
                 }
             })
             .build(),
