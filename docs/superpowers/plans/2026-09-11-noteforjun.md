@@ -981,7 +981,36 @@ pub fn note_label(id: &str) -> String {
 }
 
 pub const LIST_LABEL: &str = "list";
+
+/// 주 모니터 크기를 논리 픽셀로 돌려준다.
+/// 창을 만들 때 쓰는 좌표가 논리 픽셀이므로 여기서 단위를 맞춘다.
+/// 화면 배율이 100%가 아니면 물리 픽셀과 값이 달라진다.
+pub fn primary_screen_logical(app: &AppHandle) -> (i32, i32) {
+    app.primary_monitor()
+        .ok()
+        .flatten()
+        .map(|m| {
+            let s = m.size().to_logical::<f64>(m.scale_factor());
+            (s.width.round() as i32, s.height.round() as i32)
+        })
+        .unwrap_or((1920, 1080))
+}
+
+/// 지금 떠 있는 창들 중 가장 오른쪽 아래에 있는 창의 위치(논리 픽셀).
+/// 새 메모를 그 창에서 조금 비껴 놓기 위해 쓴다.
+pub fn last_window_position(app: &AppHandle) -> Option<(i32, i32)> {
+    app.webview_windows()
+        .values()
+        .filter_map(|w| {
+            let scale = w.scale_factor().ok()?;
+            let p = w.outer_position().ok()?.to_logical::<f64>(scale);
+            Some((p.x.round() as i32, p.y.round() as i32))
+        })
+        .max_by_key(|(x, y)| x + y)
+}
 ```
+
+**단위를 반드시 맞춰야 하는 이유**: `outer_position()`과 `monitor.size()`는 **물리 픽셀**을 주는데, `WebviewWindowBuilder::position()`은 **논리 픽셀**을 받는다. 화면 배율이 125%·150%·200%인 흔한 환경에서 이 둘을 섞으면 새 메모 창이 엉뚱한 자리에 뜨거나 화면 밖으로 나간다. 메모 창은 제목 표시줄이 없어서 화면 밖으로 나가면 끌어다 되돌릴 수 없다.
 
 - [ ] **Step 5: 테스트 통과 확인**
 
@@ -1051,7 +1080,13 @@ pub fn open_list(app: &AppHandle) -> tauri::Result<()> {
 pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
     let summaries = storage::list(notes_dir).unwrap_or_default();
     if summaries.is_empty() {
-        let note = crate::commands::new_note(notes_dir);
+        // 첫 메모는 화면 중앙에 띄운다. 기본 좌표를 그대로 쓰면
+        // next_position의 "창이 없으면 중앙" 분기가 영영 안 불린다.
+        let mut note = crate::commands::new_note(notes_dir);
+        let screen = primary_screen_logical(app);
+        let (x, y) = next_position(None, screen, (note.window.width, note.window.height));
+        note.window.x = x;
+        note.window.y = y;
         let _ = storage::save(notes_dir, &note);
         return open_note(app, &note);
     }
@@ -1148,18 +1183,8 @@ pub fn save_note(note: Note, paths: State<AppPaths>) -> Result<(), String> {
 pub fn create_note(app: AppHandle, paths: State<AppPaths>) -> Result<String, String> {
     let mut note = new_note(&paths.notes);
 
-    let last = app
-        .webview_windows()
-        .values()
-        .filter_map(|w| w.outer_position().ok())
-        .map(|p| (p.x, p.y))
-        .max_by_key(|(x, y)| x + y);
-    let screen = app
-        .primary_monitor()
-        .ok()
-        .flatten()
-        .map(|m| (m.size().width as i32, m.size().height as i32))
-        .unwrap_or((1920, 1080));
+    let last = windows::last_window_position(&app);
+    let screen = windows::primary_screen_logical(&app);
     let (x, y) = windows::next_position(last, screen, (note.window.width, note.window.height));
     note.window.x = x;
     note.window.y = y;
@@ -1185,10 +1210,11 @@ pub fn open_note_window(id: String, app: AppHandle, paths: State<AppPaths>) -> R
 
 #[tauri::command]
 pub fn hide_note_window(id: String, app: AppHandle, paths: State<AppPaths>) -> Result<(), String> {
-    if let Ok(mut note) = storage::load(&paths.notes, &id) {
-        note.window.visible = false;
-        let _ = storage::save(&paths.notes, &note);
-    }
+    // 저장 실패를 삼키면 안 된다. visible=false가 기록되지 않으면
+    // 사용자가 닫은 메모가 다음 실행 때 다시 열린 채로 뜬다.
+    let mut note = storage::load(&paths.notes, &id).map_err(|e| e.to_string())?;
+    note.window.visible = false;
+    storage::save(&paths.notes, &note).map_err(|e| e.to_string())?;
     windows::hide_note(&app, &id).map_err(|e| e.to_string())
 }
 
@@ -2947,18 +2973,9 @@ pub fn create_note_with(app: &AppHandle) -> Result<String, String> {
     };
     let mut note = new_note(&notes);
 
-    let last = app
-        .webview_windows()
-        .values()
-        .filter_map(|w| w.outer_position().ok())
-        .map(|p| (p.x, p.y))
-        .max_by_key(|(x, y)| x + y);
-    let screen = app
-        .primary_monitor()
-        .ok()
-        .flatten()
-        .map(|m| (m.size().width as i32, m.size().height as i32))
-        .unwrap_or((1920, 1080));
+    // 좌표 단위를 섞지 않도록 windows.rs의 헬퍼를 쓴다 (논리 픽셀).
+    let last = windows::last_window_position(app);
+    let screen = windows::primary_screen_logical(app);
     let (x, y) = windows::next_position(last, screen, (note.window.width, note.window.height));
     note.window.x = x;
     note.window.y = y;
