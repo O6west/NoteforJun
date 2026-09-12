@@ -3179,7 +3179,8 @@ git commit -m "feat: 드래그 서식 팝업 (B I U 형광펜)"
 - Create: `src/lib/search.js`, `src/lib/search.test.js`
 - Create: `src/styles/list.css`
 - Modify: `src/list.html`, `src/list.js`
-- Modify: `src/styles/note.css`, `src/styles/tokens.css` (`.bar-btn` 규칙을 공용 위치로 이동 — Step 8 참고)
+- Create: `src/styles/bar.css` (`.bar-btn`을 두 창이 공유 — Step 8 참고)
+- Modify: `src/styles/note.css`, `src/note.js` (`.bar-btn` 이동과 `bar.css` 불러오기)
 
 **Interfaces:**
 - Consumes: `listNotes`, `openNoteWindow`, `deleteNote`, `createNote` (Task 6), `colorOf` (Task 4)
