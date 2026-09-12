@@ -3807,9 +3807,18 @@ pub fn run() {
                 .join("NoteforJun");
             let notes = storage::notes_dir(&base);
             std::fs::create_dir_all(&notes)?;
+
+            // 순서가 중요하다. restore_all이 만드는 메모 창은 뜨자마자 load_note를
+            // 부르는데, 그때 AppPaths가 Tauri 상태에 등록돼 있어야 한다.
             app.manage(AppPaths { notes: notes.clone() });
 
-            register_shortcut(app.handle())?;
+            // 단축키 등록 실패로 앱을 못 켜게 하면 안 된다. Ctrl+Alt+N을 다른
+            // 프로그램이 이미 쓰고 있으면 등록은 흔히 실패하는데, 그건 편의 기능
+            // 하나가 빠지는 일일 뿐이다. 이 앱은 창 테두리도 트레이 아이콘도 없어서
+            // 안 켜지면 사용자가 손쓸 방법이 아예 없다.
+            if let Err(err) = register_shortcut(app.handle()) {
+                eprintln!("전역 단축키를 등록하지 못했습니다 (다른 프로그램이 쓰는 중일 수 있습니다): {err}");
+            }
             enable_autostart(app.handle());
 
             windows::restore_all(app.handle(), &notes)?;
