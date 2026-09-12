@@ -2257,6 +2257,7 @@ git commit -m "feat: Tiptap 편집기와 입력 규칙, 한글 입력 테스트"
 
 **Files:**
 - Create: `src/lib/api.js`, `src/lib/debounce.js`, `src/lib/debounce.test.js`
+- Create: `src/lib/serialize.js`, `src/lib/serialize.test.js` (저장을 한 줄로 세운다)
 - Create: `src/lib/title.js`, `src/lib/title.test.js`
 - Modify: `src/note.js`
 - Modify: `src/styles/note.css` (색 메뉴 스타일 추가)
@@ -2395,6 +2396,100 @@ export function debounce(fn, ms) {
 
 Run: `npm test -- debounce`
 Expected: PASS — 8개 통과
+
+- [ ] **Step 4-1: 저장을 줄 세우는 `serialize` 작성**
+
+글쓰기 저장과 창 위치 저장은 서로 다른 디바운스라 동시에 날아갈 수 있다. 먼저 출발한 저장이 늦게 도착하면 오래된 결과가 최신 결과를 덮는다 — 화면의 저장 표시도, 디스크의 내용도 그렇다. 번호표를 붙여 늦게 온 옵 결과를 무시하는 방법도 있지만, 애초에 겹치지 않게 줄을 세우는 편이 경합을 감추는 게 아니라 없애는 길이고, 따로 떼어내면 테스트도 가능하다.
+
+먼저 실패하는 테스트를 쓴다. `src/lib/serialize.test.js`:
+
+```js
+import { describe, expect, it, vi } from 'vitest'
+import { serialize } from './serialize.js'
+
+/** 지정한 시간 뒤에 값을 내놓는 약속 */
+function after(ms, value) {
+  return new Promise((resolve) => setTimeout(() => resolve(value), ms))
+}
+
+describe('serialize', () => {
+  it('앞의 호출이 끝난 뒤에 다음이 출발한다', async () => {
+    const order = []
+    const run = serialize(async (name, ms) => {
+      order.push(`${name} 시작`)
+      await after(ms)
+      order.push(`${name} 끝`)
+    })
+
+    const a = run('A', 30)
+    const b = run('B', 1)
+    await Promise.all([a, b])
+
+    expect(order).toEqual(['A 시작', 'A 끝', 'B 시작', 'B 끝'])
+  })
+
+  it('먼저 출발한 느린 호출이 나중 호출보다 늦게 끝나는 일이 없다', async () => {
+    const finished = []
+    const run = serialize(async (name, ms) => {
+      await after(ms)
+      finished.push(name)
+    })
+
+    await Promise.all([run('느림', 30), run('빠름', 1)])
+
+    expect(finished).toEqual(['느림', '빠름'])
+  })
+
+  it('앞의 호출이 실패해도 다음 호출은 실행된다', async () => {
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('실패'))
+      .mockResolvedValueOnce('성공')
+    const run = serialize(fn)
+
+    await expect(run()).rejects.toThrow('실패')
+    await expect(run()).resolves.toBe('성공')
+    expect(fn).toHaveBeenCalledTimes(2)
+  })
+
+  it('호출한 쪽은 자기 호출의 결과를 돌려받는다', async () => {
+    const run = serialize((v) => Promise.resolve(v * 2))
+    await expect(Promise.all([run(1), run(2), run(3)])).resolves.toEqual([2, 4, 6])
+  })
+})
+```
+
+Run: `npm test -- serialize`
+Expected: FAIL — `Failed to resolve import "./serialize.js"`
+
+그 다음 구현한다. `src/lib/serialize.js`:
+
+```js
+/**
+ * 함수 호출을 한 줄로 세운다. 앞의 호출이 끝나야 다음이 출발한다.
+ *
+ * 저장이 겹치면 먼저 출발한 쪽이 늦게 도착할 수 있고, 그러면 오래된 결과가
+ * 최신 결과를 덮어쓴다 — 화면의 저장 표시도, 디스크의 내용도 그렇다.
+ * 순서를 지키면 그 경우가 아예 생기지 않는다.
+ *
+ * 앞의 호출이 실패해도 줄은 끊기지 않는다. 실패 하나 때문에 이후 저장이
+ * 전부 멈추는 쪽이 훨씬 나쁘다.
+ */
+export function serialize(fn) {
+  let chain = Promise.resolve()
+  return (...args) => {
+    const next = chain.then(
+      () => fn(...args),
+      () => fn(...args),
+    )
+    chain = next.catch(() => {})
+    return next
+  }
+}
+```
+
+Run: `npm test -- serialize`
+Expected: PASS — 4개 통과
 
 - [ ] **Step 5: `title`의 실패하는 테스트 작성**
 
@@ -2569,6 +2664,7 @@ import {
 import { COLORS, DEFAULT_COLOR } from './lib/colors.js'
 import { debounce } from './lib/debounce.js'
 import { installResizeZones } from './lib/resize.js'
+import { serialize } from './lib/serialize.js'
 import { clampTitle } from './lib/title.js'
 
 const SAVE_DELAY = 500
@@ -2587,6 +2683,8 @@ let remember = null
 
 const savedMark = document.getElementById('saved')
 let savedTimer = null
+let lastSaveFailed = false
+let closeHeld = false
 
 /**
  * 저장이 끝났다는 표시를 잠깐 띄운다.
@@ -2594,6 +2692,8 @@ let savedTimer = null
  * 그렇다고 늘 띄워두면 잔소리가 된다. 그래서 떴다가 스스로 사라진다.
  */
 function flashSaved() {
+  lastSaveFailed = false
+  closeHeld = false
   savedMark.textContent = '✓'
   savedMark.title = ''
   savedMark.classList.remove('warn')
@@ -2605,13 +2705,20 @@ function flashSaved() {
 /** 저장 실패는 사라지지 않는 경고로 남긴다. 글이 날아가는 것이 이 앱 최악의 사고다. */
 function showSaveError(err) {
   console.error('메모를 저장하지 못했습니다', err)
+  lastSaveFailed = true
   clearTimeout(savedTimer)
   savedMark.textContent = '⚠'
   savedMark.title = '저장하지 못했습니다. 창을 닫지 말고 글을 복사해 두세요.'
   savedMark.classList.add('show', 'warn')
 }
 
-/** 메모를 못 읽어도 창은 닫을 수 있어야 한다. */
+/**
+ * 메모를 못 읽어도 창은 닫을 수 있어야 한다.
+ *
+ * 저장 실패와 달리 lastSaveFailed를 세우지 않는 것은 의도한 비대칭이다.
+ * 불러오기가 실패하면 boot()이 멈춰 제목·본문 듣기가 붙지 않으므로
+ * 사용자가 고친 것이 없고, 잃을 글도 없다. 붙잡을 이유가 없다.
+ */
 function showLoadError(err) {
   console.error('메모를 불러오지 못했습니다', err)
   const editorEl = document.getElementById('editor')
@@ -2622,22 +2729,32 @@ function showLoadError(err) {
   savedMark.classList.add('show', 'warn')
 }
 
+/** 저장은 한 번에 하나씩만 나간다. 겹치면 오래된 결과가 최신 결과를 덮는다. */
+const saveInOrder = serialize((n) => saveNote(n))
+
 /** 저장하는 유일한 통로. 성공하면 표시를 띄우고, 실패하면 경고를 남긴다. */
 function persist() {
   if (!note) return Promise.resolve()
-  return saveNote(note).then(flashSaved, showSaveError)
+  return saveInOrder(note).then(flashSaved, showSaveError)
 }
 
 const saver = debounce(() => persist(), SAVE_DELAY)
 
 // 무슨 일이 있어도 창은 닫을 수 있어야 한다. 불러오기가 실패해도 마찬가지다.
 document.getElementById('close').addEventListener('click', async () => {
-  try {
-    await saver.flush()
-    if (remember) await remember.flush()
-  } catch (err) {
-    console.error('닫기 전 저장에 실패했습니다', err)
+  await saver.flush()
+  if (remember) await remember.flush()
+
+  // 저장이 실패했는데 창을 숨기면 경고를 볼 수 없고 글도 잃는다.
+  // 한 번은 붙잡아 두고, 그래도 닫겠다면 그때는 닫아준다 —
+  // 창 테두리가 없어 × 말고는 닫을 방법이 없으므로 영영 가둘 수는 없다.
+  if (lastSaveFailed && !closeHeld) {
+    closeHeld = true
+    savedMark.title =
+      '저장하지 못했습니다. 글을 복사해 두세요. ×를 한 번 더 누르면 저장하지 않고 닫습니다.'
+    return
   }
+
   await hideNoteWindow(id)
 })
 
@@ -2680,6 +2797,7 @@ async function boot() {
     note.title = clampTitle(titleInput.value)
     saver.call()
   })
+
   // 제목을 다 쓰면 본문으로 내려간다. 제목은 한 줄이라 Enter가 할 일이 따로 없고,
   // Tab은 그냥 두면 ⋯ 버튼으로 가버려서 정작 쓰려던 본문을 건너뛴다.
   titleInput.addEventListener('keydown', (e) => {
@@ -2731,7 +2849,7 @@ boot()
 - [ ] **Step 13: 전체 테스트 실행**
 
 Run: `npm test`
-Expected: PASS — colors 4 + rules 5 + editor 12 + korean 11 + debounce 8 + title 8 = 48개 통과
+Expected: PASS — colors 4 + rules 5 + editor 12 + korean 11 + debounce 8 + title 8 + serialize 4 = 52개 통과
 
 - [ ] **Step 14: 손으로 확인**
 
@@ -3349,7 +3467,7 @@ refresh()
 - [ ] **Step 10: 전체 테스트 실행**
 
 Run: `npm test`
-Expected: PASS — 48 + bubble 6 + preview 7 + search 6 = 67개 통과
+Expected: PASS — 52 + bubble 6 + preview 7 + search 6 = 71개 통과
 
 - [ ] **Step 11: 손으로 확인**
 
@@ -3592,7 +3710,7 @@ git commit -m "feat: 자동 실행, 전역 단축키, 단일 인스턴스"
 - [ ] **Step 1: 자동 테스트 전체 실행**
 
 Run: `npm test`
-Expected: PASS — 67개
+Expected: PASS — 71개
 
 Run: `cd src-tauri && cargo test`
 Expected: PASS — 27개

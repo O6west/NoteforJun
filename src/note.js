@@ -63,7 +63,13 @@ function showSaveError(err) {
   savedMark.classList.add('show', 'warn')
 }
 
-/** 메모를 못 읽어도 창은 닫을 수 있어야 한다. */
+/**
+ * 메모를 못 읽어도 창은 닫을 수 있어야 한다.
+ *
+ * 저장 실패와 달리 lastSaveFailed를 세우지 않는 것은 의도한 비대칭이다.
+ * 불러오기가 실패하면 boot()이 멈춰 제목·본문 듣기가 붙지 않으므로
+ * 사용자가 고친 것이 없고, 잃을 글도 없다. 붙잡을 이유가 없다.
+ */
 function showLoadError(err) {
   console.error('메모를 불러오지 못했습니다', err)
   const editorEl = document.getElementById('editor')
