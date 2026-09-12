@@ -1521,7 +1521,10 @@ html, body {
  * 노리기 때문이고, 가장자리를 더 넓히면 본문 첫 글자를 클릭하려다 크기가 바뀐다.
  */
 .resize-zone { position: fixed; z-index: 100; }
-.resize-n  { top: 0; left: 20px; right: 20px; height: 8px; cursor: ns-resize; }
+/* 위쪽만 둘로 나눠 가운데 60px을 비운다. 그 자리에 창을 끄는 손잡이가 있어서,
+   비워두지 않으면 손잡이 위에서 크기 조절 커서가 겹쳐 뜬다. */
+.resize-n-l { top: 0; left: 20px; right: calc(50% + 30px); height: 8px; cursor: ns-resize; }
+.resize-n-r { top: 0; left: calc(50% + 30px); right: 20px; height: 8px; cursor: ns-resize; }
 .resize-s  { bottom: 0; left: 20px; right: 20px; height: 8px; cursor: ns-resize; }
 .resize-w  { left: 0; top: 20px; bottom: 20px; width: 8px; cursor: ew-resize; }
 .resize-e  { right: 0; top: 20px; bottom: 20px; width: 8px; cursor: ew-resize; }
@@ -1533,6 +1536,49 @@ html, body {
 /* 위쪽 모서리 판정 영역이 +/⋯/× 버튼과 손잡이를 덮지 않도록 그 위로 올린다 */
 .bar-btn,
 #grabber { position: relative; z-index: 101; }
+```
+
+그리고 그 영역을 실제로 설치하는 `src/lib/resize.js`를 만든다. 목록 창도 같은 문제를 겪으므로 두 창이 함께 쓴다.
+
+```js
+import { getCurrentWindow } from '@tauri-apps/api/window'
+
+const ZONES = [
+  { dir: 'NorthWest', cls: 'nw' },
+  // 위쪽은 하나가 아니라 둘이다. 가운데를 비워 손잡이와 커서가 겹치지 않게 한다.
+  { dir: 'North', cls: 'n-l' },
+  { dir: 'North', cls: 'n-r' },
+  { dir: 'NorthEast', cls: 'ne' },
+  { dir: 'West', cls: 'w' },
+  { dir: 'East', cls: 'e' },
+  { dir: 'SouthWest', cls: 'sw' },
+  { dir: 'South', cls: 's' },
+  { dir: 'SouthEast', cls: 'se' },
+]
+
+/**
+ * 창 둘레에 보이지 않는 크기 조절 영역을 두른다.
+ *
+ * 창 테두리를 껐기 때문에(상단바를 직접 그리려고) OS가 주던 리사이즈 테두리도
+ * 함께 사라졌다. 남은 판정 영역이 몇 px뿐이라 조준이 조금만 어긋나도 실패한다.
+ *
+ * 가장자리는 8px로 좁게, 모서리는 20px로 넓게 잡는다. 사람은 창 크기를 바꿀 때
+ * 주로 모서리를 노리고, 가장자리를 더 넓히면 본문 첫 글자를 클릭하려다
+ * 창 크기가 바뀌는 더 성가신 문제가 생긴다.
+ */
+export function installResizeZones(container = document.body) {
+  const win = getCurrentWindow()
+  for (const { dir, cls } of ZONES) {
+    const el = document.createElement('div')
+    el.className = `resize-zone resize-${cls}`
+    el.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return
+      e.preventDefault()
+      win.startResizeDragging(dir)
+    })
+    container.appendChild(el)
+  }
+}
 ```
 
 - [ ] **Step 7: `note.css` 작성**
@@ -1647,6 +1693,27 @@ html, body {
   opacity: 0.5;
 }
 
+/*
+ * 자동 저장 표시. 저장이 끝나면 잠깐 떴다가 스르르 사라진다.
+ * 자리를 항상 차지하는 이유는, 나타날 때마다 제목칸 폭이 들썩이면
+ * 글을 쓰는 동안 눈에 거슬리기 때문이다. 안 보일 뿐 자리는 늘 있다.
+ */
+#saved {
+  flex: 0 0 auto;
+  width: 14px;
+  font-size: 12px;
+  line-height: 1;
+  text-align: center;
+  color: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.55s ease;
+}
+#saved.show {
+  opacity: 0.7;
+  transition: opacity 0.12s ease;
+}
+
 /* 빈 문서일 때만 안내 문구를 보여준다 */
 #editor p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
@@ -1672,6 +1739,7 @@ html, body {
         <div id="grabber" data-tauri-drag-region title="끌어서 옮기기"><i></i></div>
         <button class="bar-btn" id="new-note" title="새 메모 (Ctrl+Alt+N)">+</button>
         <input id="title" type="text" maxlength="20" placeholder="제목" />
+        <span id="saved" aria-hidden="true">✓</span>
         <button class="bar-btn" id="menu-btn" title="메뉴">⋯</button>
         <button class="bar-btn" id="close" title="닫기">×</button>
       </div>
@@ -2305,8 +2373,22 @@ const swatches = document.getElementById('swatches')
 let note = null
 let editor = null
 
+const savedMark = document.getElementById('saved')
+let savedTimer = null
+
+/**
+ * 저장이 끝났다는 표시를 잠깐 띄운다.
+ * 아무 신호도 없이 조용히 저장하면 사용자는 저장됐는지 알 수 없고,
+ * 그렇다고 늘 띄워두면 잔소리가 된다. 그래서 떴다가 스스로 사라진다.
+ */
+function flashSaved() {
+  savedMark.classList.add('show')
+  clearTimeout(savedTimer)
+  savedTimer = setTimeout(() => savedMark.classList.remove('show'), 900)
+}
+
 const saver = debounce(() => {
-  if (note) saveNote(note)
+  if (note) saveNote(note).then(flashSaved)
 }, SAVE_DELAY)
 
 function applyColor(key) {
@@ -2376,7 +2458,7 @@ async function boot() {
     const pos = await win.outerPosition()
     const size = await win.innerSize()
     note.window = { x: pos.x, y: pos.y, width: size.width, height: size.height, visible: true }
-    saveNote(note)
+    saveNote(note).then(flashSaved)
   }, SAVE_DELAY)
   await win.onMoved(() => remember.call())
   await win.onResized(() => remember.call())

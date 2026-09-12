@@ -113,3 +113,24 @@
   pointer-events: none;
   opacity: 0.4;
 }
+
+/*
+ * 자동 저장 표시. 저장이 끝나면 잠깐 떴다가 스르르 사라진다.
+ * 자리를 항상 차지하는 이유는, 나타날 때마다 제목칸 폭이 들썩이면
+ * 글을 쓰는 동안 눈에 거슬리기 때문이다. 안 보일 뿐 자리는 늘 있다.
+ */
+#saved {
+  flex: 0 0 auto;
+  width: 14px;
+  font-size: 12px;
+  line-height: 1;
+  text-align: center;
+  color: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.55s ease;
+}
+#saved.show {
+  opacity: 0.7;
+  transition: opacity 0.12s ease;
+}
