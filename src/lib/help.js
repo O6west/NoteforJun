@@ -16,7 +16,7 @@ const LINES = [
   ['Ctrl+Alt+N', '새 메모'],
 ]
 
-export function createHelp({ button, container }) {
+export function createHelp({ button, container, menu = null }) {
   const element = document.createElement('div')
   element.id = 'help'
   element.hidden = true
@@ -36,6 +36,10 @@ export function createHelp({ button, container }) {
   button.setAttribute('aria-describedby', 'help')
 
   const show = () => {
+    // ⋯ 메뉴가 열려 있으면 뜨지 않는다. 둘 다 상단바 바로 아래 같은 자리를
+    // 쓰는데 도움말이 위층(103)이라, 그냥 두면 방금 눌러서 연 메뉴를 통째로 덮는다.
+    // 클릭해서 연 쪽이 이긴다 — 커서가 스쳤을 뿐인 쪽이 아니라.
+    if (menu && !menu.hidden) return
     element.hidden = false
   }
   const hide = () => {

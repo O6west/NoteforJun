@@ -66,4 +66,21 @@ describe('도움말', () => {
     expect(container.querySelector('#help')).toBeNull()
     help = createHelp({ button, container }) // afterEach가 다시 destroy할 수 있게
   })
+
+  it('메뉴가 열려 있으면 뜨지 않는다', () => {
+    // ⋯ 메뉴와 도움말은 상단바 바로 아래 같은 자리를 쓴다. 도움말이 위층이라
+    // 그냥 두면 방금 눌러서 연 메뉴를 통째로 덮어, 메뉴가 사라진 것처럼 보인다.
+    const menu = document.createElement('div')
+    menu.hidden = false
+    container.appendChild(menu)
+    help.destroy()
+    help = createHelp({ button, container, menu })
+
+    button.dispatchEvent(new MouseEvent('mouseenter'))
+    expect(help.element.hidden).toBe(true)
+
+    menu.hidden = true
+    button.dispatchEvent(new MouseEvent('mouseenter'))
+    expect(help.element.hidden).toBe(false)
+  })
 })

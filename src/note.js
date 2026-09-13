@@ -176,7 +176,7 @@ async function boot() {
     onUpdate: () => saver.call(),
   })
   createBubble({ editor, container: shell })
-  createHelp({ button: document.getElementById('help-btn'), container: shell })
+  createHelp({ button: document.getElementById('help-btn'), container: shell, menu })
 
   document.getElementById('new-note').addEventListener('click', () =>
     createNote().catch((err) => showSaveError(err)),
