@@ -149,6 +149,10 @@ pub fn open_note(app: &AppHandle, note: &Note) -> tauri::Result<()> {
         .position(note.window.x as f64, note.window.y as f64)
         .decorations(false)
         .resizable(true)
+        // 다른 프로그램을 클릭해도 메모는 앞에 남는다. 포스트잇으로 쓰는 앱인데
+        // 뒤로 숨으면 볼 때마다 찾아와야 한다. 끄는 길은 두지 않는다 — 항상
+        // 보이는 것이 이 앱의 전제다. 넓은 목록 창(open_list)은 그대로 둔다.
+        .always_on_top(true)
         // 최대화를 막는다. 상단바를 더블클릭하면 Tauri가 최대화하는데, 우리 창에는
         // OS 제목 표시줄이 없어 되돌릴 버튼이 없다. 한번 최대화되면 빠져나올 길이
         // 사라지고, 메모 창은 크기를 기억하므로 그 크기가 그대로 저장된다.
