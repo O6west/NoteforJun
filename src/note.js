@@ -85,9 +85,16 @@ function showLoadError(err) {
 /** 저장은 한 번에 하나씩만 나간다. 겹치면 오래된 결과가 최신 결과를 덮는다. */
 const saveInOrder = serialize((n) => saveNote(n))
 
-/** 저장하는 유일한 통로. 성공하면 표시를 띄우고, 실패하면 경고를 남긴다. */
+/**
+ * 저장하는 유일한 통로. 성공하면 표시를 띄우고, 실패하면 경고를 남긴다.
+ *
+ * 본문을 여기서 읽는 이유는, 이곳이 모든 저장 경로가 반드시 지나는 한 지점이기
+ * 때문이다. 타이핑·제목·색·창 이동·닫기 직전 flush가 전부 여기로 모이므로,
+ * 어느 경로로 들어와도 저장되는 것은 지금 화면에 있는 그대로다.
+ */
 function persist() {
   if (!note) return Promise.resolve()
+  if (editor) note.content = editor.getHTML()
   return saveInOrder(note).then(flashSaved, showSaveError)
 }
 
@@ -165,10 +172,7 @@ async function boot() {
   editor = createEditor({
     element: document.getElementById('editor'),
     content: note.content,
-    onUpdate: (html) => {
-      note.content = html
-      saver.call()
-    },
+    onUpdate: () => saver.call(),
   })
   createBubble({ editor, container: shell })
 

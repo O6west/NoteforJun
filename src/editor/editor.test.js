@@ -106,3 +106,24 @@ describe('편집기 설정', () => {
     expect(editor.view.dom.getAttribute('spellcheck')).toBe('false')
   })
 })
+
+describe('저장 신호', () => {
+  it('글자를 칠 때마다 알리되, 본문을 직렬화해 넘기지는 않는다', () => {
+    // 직렬화는 저장하는 쪽이 저장 직전에 한 번만 한다.
+    // 한글은 조합 중에도 자모마다 문서가 바뀌어서 '가' 한 글자에 두 번 불린다.
+    // 여기서 매번 getHTML()을 하면 메모가 길어질수록 그 비용이 IME 조합
+    // 타이밍을 밀어내고, 글자가 한 박자 늦게 들어간다.
+    const calls = []
+    const el = document.createElement('div')
+    document.body.appendChild(el)
+    const ed = createEditor({ element: el, content: '', onUpdate: (...args) => calls.push(args) })
+
+    typeText(ed, '가나다')
+
+    expect(calls.length).toBeGreaterThan(0)
+    expect(calls.every((args) => args.length === 0)).toBe(true)
+
+    ed.destroy()
+    el.remove()
+  })
+})
