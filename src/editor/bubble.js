@@ -101,6 +101,23 @@ export function createBubble({ editor, container }) {
     }, 0)
   }
 
+  /**
+   * 본문에서 Tab을 누르면 팝업 첫 버튼으로 보낸다.
+   *
+   * 팝업 안에서 버튼 사이를 도는 것(onKeyDown)은 원래 있었는데, 그 앞 단계인
+   * 본문 → 팝업 인계가 브라우저 기본 탭 순서에 맡겨져 있었다. 팝업이 #shell
+   * 맨 끝에 붙어 있어서 "우연히" 본문 다음 차례가 되는 구조다. 명시적으로 잇는다.
+   *
+   * Shift+Tab은 가로채지 않는다. 뒤로 가는 길은 상단바로 올라가는 것이 맞다.
+   */
+  const onEditorKeyDown = (e) => {
+    if (e.key !== 'Tab' || e.shiftKey || element.hidden) return
+    const first = element.querySelector('button')
+    if (!first) return
+    e.preventDefault()
+    first.focus()
+  }
+
   const onKeyDown = (e) => {
     // Esc로 빠져나간다. 팝업 안에서 Tab이 맴돌기 때문에 나가는 길은 이것뿐이고,
     // 그래서 하나로 분명해야 한다.
@@ -129,6 +146,7 @@ export function createBubble({ editor, container }) {
   }
 
   element.addEventListener('keydown', onKeyDown)
+  editor.view.dom.addEventListener('keydown', onEditorKeyDown)
   editor.on('selectionUpdate', update)
   editor.on('blur', hide)
 
@@ -137,6 +155,7 @@ export function createBubble({ editor, container }) {
     update,
     destroy() {
       element.removeEventListener('keydown', onKeyDown)
+      editor.view.dom.removeEventListener('keydown', onEditorKeyDown)
       editor.off('selectionUpdate', update)
       editor.off('blur', hide)
       element.remove()
