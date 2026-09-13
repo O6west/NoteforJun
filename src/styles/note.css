@@ -25,7 +25,15 @@
  * 창을 끌기 위한 손잡이.
  * 제목칸 위에 겹쳐 떠 있어 제목 폭을 전혀 뺏지 않는다. 제목을 20자까지
  * 꽉 채워도 잡을 곳이 사라지지 않는 것이 이 요소가 존재하는 이유다.
- * 보이는 선은 40px이지만 실제로 잡히는 영역은 56px로 넉넉히 둔다.
+ * 보이는 선은 44px이지만 실제로 잡히는 영역은 80×20px로 넉넉히 둔다.
+ *
+ * 폭을 80px로 멈추는 이유: 제목 위에 겹쳐 있고 cursor: grab을 쓰므로,
+ * 넓힌 만큼 제목을 클릭할 수 없는 구간이 된다. 창 최소 폭이 220px이라
+ * 96px을 넘기면 제목칸 절반을 잡아먹는다.
+ *
+ * 높이를 20px로 멈추는 이유: 상단바는 34px이고 그 아래쪽은 어차피
+ * #titlebar의 data-tauri-drag-region이 맡고 있어 끌린다. 더 늘려봐야
+ * 얻는 것 없이 제목 클릭 영역만 줄어든다.
  */
 #grabber {
   position: absolute;
@@ -34,8 +42,8 @@
   transform: translateX(-50%);
   /* 크기 조절 영역(100)보다 위. 겹치는 자리에서는 끌기가 먼저 잡혀야 한다. */
   z-index: 101;
-  width: 56px;
-  height: 13px;
+  width: 80px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -46,12 +54,18 @@
 }
 #grabber i {
   display: block;
-  width: 40px;
-  height: 3px;
+  width: 44px;
+  height: 4px;
   border-radius: 2px;
   /* 상단바 글자색을 그대로 쓰므로 6색 어디서나 알아서 어울린다 */
   background: currentColor;
-  opacity: 0.38;
+  opacity: 0.5;
+  transition: opacity 0.12s ease;
+}
+/* 크기만 키우면 여전히 어디를 노려야 하는지 눈에 안 들어온다.
+   커서를 올렸을 때 진해지는 것이 "여기가 잡는 곳"이라는 신호다. */
+#grabber:hover i {
+  opacity: 0.75;
 }
 
 #title {
