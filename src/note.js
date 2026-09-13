@@ -16,6 +16,7 @@ import {
 } from './lib/api.js'
 import { COLORS, DEFAULT_COLOR, colorOf } from './lib/colors.js'
 import { debounce } from './lib/debounce.js'
+import { createHelp } from './lib/help.js'
 import { installResizeZones } from './lib/resize.js'
 import { serialize } from './lib/serialize.js'
 import { clampTitle } from './lib/title.js'
@@ -175,6 +176,7 @@ async function boot() {
     onUpdate: () => saver.call(),
   })
   createBubble({ editor, container: shell })
+  createHelp({ button: document.getElementById('help-btn'), container: shell })
 
   document.getElementById('new-note').addEventListener('click', () =>
     createNote().catch((err) => showSaveError(err)),

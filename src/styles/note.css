@@ -193,3 +193,43 @@
 #bubble button[data-mark='italic'] { font-style: italic; }
 #bubble button[data-mark='bold'] { font-weight: 700; }
 #bubble button[data-mark='underline'] { text-decoration: underline; }
+
+/*
+ * ? 도움말. 서식 팝업(102)보다 위에 둔다 — 둘이 겹칠 일은 드물지만,
+ * 겹치면 방금 연 쪽이 보이는 것이 맞다.
+ *
+ * 좌우를 8px씩 양쪽 다 잡아두는 이유는 창이 최소 폭(220px)까지 좁아져도
+ * 밖으로 밀려나지 않게 하기 위해서다. #shell이 overflow: hidden이라
+ * 한번 밀려나면 그만큼 잘려서 아예 안 보인다.
+ */
+#help {
+  position: absolute;
+  top: calc(var(--nfj-bar-height) + 4px);
+  left: 8px;
+  right: 8px;
+  z-index: 103;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  padding: 9px 11px;
+  border-radius: 6px;
+  background: #2e2e2c;
+  color: #f2f0ea;
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  /* 팝업이 마우스를 가로채면 버튼에서 mouseleave가 안 떠서 안 사라진다 */
+  pointer-events: none;
+}
+#help[hidden] { display: none; }
+#help kbd { font-family: inherit; opacity: 0.72; }
+
+/*
+ * ? 는 + × ⋯ 보다 획이 잘아서, .bar-btn의 20px로 두면 혼자 커 보인다.
+ *
+ * bar.css가 아니라 여기에 두는 것은 #help-btn이 메모 창에만 있는 버튼이기
+ * 때문이다. resize.css가 경고하는 "한 요소의 스타일이 두 파일에 흩어져
+ * 불러오는 순서가 승패를 가르는" 경우에는 해당하지 않는다 — id 선택자가
+ * .bar-btn의 class 선택자를 명시도로 이기므로 순서와 무관하다.
+ */
+#help-btn { font-size: 15px; font-weight: 700; }
