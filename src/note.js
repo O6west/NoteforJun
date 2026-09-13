@@ -103,7 +103,13 @@ const saver = debounce(() => persist(), SAVE_DELAY)
 
 // 무슨 일이 있어도 창은 닫을 수 있어야 한다. 불러오기가 실패해도 마찬가지다.
 document.getElementById('close').addEventListener('click', async () => {
-  await saver.flush()
+  // flush()가 아니라 cancel() + persist()인 이유: flush는 대기 중인 타이머가
+  // 없으면 그냥 돌아온다. 이미 출발해 진행 중인 저장은 기다리지 않는다는 뜻이다.
+  // 그대로 hide_note_window가 나가면, 그쪽이 디스크에서 읽은 옛 본문으로 방금
+  // 저장한 글을 덮어쓴다. persist()는 saveInOrder 줄 맨 뒤에 서므로, 이걸
+  // 기다리면 앞의 저장이 전부 끝난 뒤에야 다음으로 넘어간다.
+  saver.cancel()
+  await persist()
   if (remember) await remember.flush()
 
   // 저장이 실패했는데 창을 숨기면 경고를 볼 수 없고 글도 잃는다.
