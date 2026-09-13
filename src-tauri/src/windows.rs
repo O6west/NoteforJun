@@ -34,21 +34,66 @@ pub enum Startup {
     Restore(Vec<String>),
 }
 
+/// 한 번에 되살릴 메모의 최대 개수.
+///
+/// 메모는 계속 쌓인다. 상한이 없으면 지금은 아홉 개, 한 달 뒤엔 수십 개의 창이
+/// 부팅할 때 한꺼번에 뜬다. 책상을 돌려놓자는 것이지 어지르자는 것이 아니다.
+pub const MAX_RESTORE: usize = 5;
+
+/// 되살릴지 판단하는 데 필요한 것만 추린 메모 한 건.
+/// startup_plan을 파일 시스템에서 떼어내기 위해 있다.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Candidate {
+    pub id: String,
+    /// 앱이 마지막으로 켜져 있을 때 화면에 떠 있었는가
+    pub was_visible: bool,
+    /// 제목도 본문도 비어 있는가
+    pub blank: bool,
+    /// ISO 8601. 앞자리부터 자릿수가 고정돼 있어 문자열 비교가 곧 시간순이다.
+    pub updated_at: String,
+}
+
+impl From<&Note> for Candidate {
+    fn from(n: &Note) -> Self {
+        Self {
+            id: n.id.clone(),
+            was_visible: n.window.visible,
+            blank: is_blank(n),
+            updated_at: n.updated_at.clone(),
+        }
+    }
+}
+
 /// 켜질 때 무엇을 띄울지 정한다.
 ///
-/// 아무것도 안 띄우는 선택지는 없다. 메모 창에는 OS 테두리가 없고 트레이 아이콘도
-/// 쓰지 않으므로, 창이 하나도 없으면 앱은 켜져 있는데 사용자가 닿을 방법이 없다.
-/// 마지막 메모를 × 로 닫고 재시작하면 바로 그 상태가 된다.
+/// 내용이 있는 메모를 [화면에 떠 있던 것 먼저, 그다음 최근 수정순]으로
+/// 최대 MAX_RESTORE개까지 띄운다.
 ///
-/// 전부 숨겨져 있을 때 빈 메모를 내미는 이유는 이 앱의 쓰임새 때문이다 —
-/// 생각났을 때 바로 적는 것이지, 목록부터 보는 게 아니다.
-/// 다만 매번 새로 만들면 껐다 켤 때마다 빈 메모가 쌓이므로,
-/// 이미 비어 있는 메모가 있으면 그것을 다시 띄운다.
-pub fn startup_plan(visible: Vec<String>, empty: Vec<String>) -> Startup {
-    if !visible.is_empty() {
-        return Startup::Restore(visible);
+/// × 로 닫은 메모도 최근 다섯 개 안에 들면 돌아온다. × 는 "잠깐 치우기"이지
+/// "그만 보기"가 아니기 때문이다. 화면에 떠 있던 메모를 앞세우는 것은,
+/// 재시작 직전의 책상이 그중 가장 확실한 단서이기 때문이다.
+///
+/// 빈 메모를 빼는 이유는 되살려봐야 사용자가 얻을 것이 없어서다. 다만
+/// 아무것도 안 띄우는 선택지는 없다 — 메모 창에는 OS 테두리가 없고 트레이
+/// 아이콘도 쓰지 않으므로, 창이 하나도 없으면 앱은 켜져 있는데 닿을 방법이 없다.
+pub fn startup_plan(candidates: Vec<Candidate>) -> Startup {
+    let mut keep: Vec<Candidate> = candidates.into_iter().filter(|c| !c.blank).collect();
+    keep.sort_by(|a, b| {
+        b.was_visible
+            .cmp(&a.was_visible)
+            .then_with(|| b.updated_at.cmp(&a.updated_at))
+    });
+    keep.truncate(MAX_RESTORE);
+    if keep.is_empty() {
+        return Startup::NewNote;
     }
-    match empty.into_iter().next() {
+    Startup::Restore(keep.into_iter().map(|c| c.id).collect())
+}
+
+/// 작업표시줄 아이콘을 눌렀을 때 무엇을 띄울지.
+/// 이미 비어 있는 메모가 있으면 그것을 다시 띄운다 — 매번 새로 만들면 빈 메모가 쌓인다.
+pub fn blank_plan(blank: Vec<String>) -> Startup {
+    match blank.into_iter().next() {
         Some(id) => Startup::Restore(vec![id]),
         None => Startup::NewNote,
     }
@@ -156,17 +201,12 @@ pub fn open_list(app: &AppHandle) -> tauri::Result<()> {
 
 /// 앱을 켤 때 호출한다.
 ///
-/// 열어둔 채 껐던 메모를 그대로 되살린다 — 책상을 원래대로 돌려놓는 일이다.
-/// 되살릴 게 없으면 적을 수 있는 빈 메모를 내민다. 이미 비어 있는 메모가
-/// 있으면 그것을 다시 띄우고, 없을 때만 새로 만든다.
+/// 내용이 있는 메모를 최대 MAX_RESTORE개까지 되살린다 — 책상을 원래대로
+/// 돌려놓는 일이다. 되살릴 게 없으면 적을 수 있는 빈 메모를 내민다.
 pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
     let notes = load_all(notes_dir);
-    let visible: Vec<String> = notes
-        .iter()
-        .filter(|n| n.window.visible)
-        .map(|n| n.id.clone())
-        .collect();
-    apply(app, notes_dir, &notes, startup_plan(visible, blank_ids(&notes)))
+    let candidates: Vec<Candidate> = notes.iter().map(Candidate::from).collect();
+    apply(app, notes_dir, &notes, startup_plan(candidates))
 }
 
 /// 작업표시줄 아이콘을 눌렀을 때. 적을 수 있는 빈 메모를 내민다.
@@ -175,7 +215,7 @@ pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
 /// 무언가 적을 자리를 달라는 뜻이지, 어제 보던 것을 다시 보자는 뜻이 아니다.
 pub fn open_blank(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
     let notes = load_all(notes_dir);
-    apply(app, notes_dir, &notes, startup_plan(vec![], blank_ids(&notes)))
+    apply(app, notes_dir, &notes, blank_plan(blank_ids(&notes)))
 }
 
 fn load_all(notes_dir: &PathBuf) -> Vec<Note> {
@@ -256,19 +296,78 @@ mod tests {
         assert_eq!(next_position(Some((100, 1000)), SCREEN, SIZE), (48, 48));
     }
 
-    #[test]
-    fn nothing_to_show_creates_a_blank_note() {
-        // 메모가 아예 없을 때와, 메모는 있지만 전부 숨겨졌고 빈 것도 없을 때가
-        // 같은 입력으로 모인다. 둘 다 아무것도 안 띄우면 앱에 닿을 수 없게 된다.
-        assert_eq!(startup_plan(vec![], vec![]), Startup::NewNote);
+    fn cand(id: &str, was_visible: bool, blank: bool, updated_at: &str) -> Candidate {
+        Candidate {
+            id: id.to_string(),
+            was_visible,
+            blank,
+            updated_at: updated_at.to_string(),
+        }
+    }
+
+    fn ids(plan: Startup) -> Vec<String> {
+        match plan {
+            Startup::Restore(ids) => ids,
+            Startup::NewNote => panic!("빈 메모를 만들 자리가 아니다"),
+        }
     }
 
     #[test]
-    fn visible_notes_are_restored() {
+    fn nothing_to_show_creates_a_blank_note() {
+        // 메모가 아예 없을 때와, 있는 메모가 전부 빈 메모일 때가 같은 결과로 모인다.
+        // 둘 다 아무것도 안 띄우면 앱에 닿을 수 없게 된다 — 창 테두리도 트레이도 없다.
+        assert_eq!(startup_plan(vec![]), Startup::NewNote);
         assert_eq!(
-            startup_plan(vec!["a".to_string(), "b".to_string()], vec![]),
-            Startup::Restore(vec!["a".to_string(), "b".to_string()])
+            startup_plan(vec![cand("a", true, true, "2026-09-13T00:00:00Z")]),
+            Startup::NewNote
         );
+    }
+
+    #[test]
+    fn blank_notes_are_never_restored() {
+        let plan = startup_plan(vec![
+            cand("blank", true, true, "2026-09-13T09:00:00Z"),
+            cand("written", false, false, "2026-09-13T08:00:00Z"),
+        ]);
+        assert_eq!(ids(plan), vec!["written".to_string()]);
+    }
+
+    #[test]
+    fn notes_on_screen_come_first() {
+        // 오래됐어도 화면에 떠 있던 메모가 상한 자리를 먼저 차지한다.
+        let plan = startup_plan(vec![
+            cand("fresh", false, false, "2026-09-13T09:00:00Z"),
+            cand("on-screen", true, false, "2026-09-01T00:00:00Z"),
+        ]);
+        assert_eq!(ids(plan), vec!["on-screen".to_string(), "fresh".to_string()]);
+    }
+
+    #[test]
+    fn hidden_notes_are_ordered_by_recency() {
+        let plan = startup_plan(vec![
+            cand("old", false, false, "2026-09-01T00:00:00Z"),
+            cand("new", false, false, "2026-09-13T00:00:00Z"),
+        ]);
+        assert_eq!(ids(plan), vec!["new".to_string(), "old".to_string()]);
+    }
+
+    #[test]
+    fn restores_at_most_five() {
+        // 메모는 계속 쌓인다. 상한이 없으면 언젠가 부팅할 때 창 수십 개가 한꺼번에 뜬다.
+        let many: Vec<Candidate> = (0..9)
+            .map(|i| cand(&format!("n{i}"), false, false, &format!("2026-09-{:02}T00:00:00Z", i + 1)))
+            .collect();
+        assert_eq!(ids(startup_plan(many)).len(), MAX_RESTORE);
+    }
+
+    #[test]
+    fn taskbar_click_reuses_an_existing_blank_note() {
+        // 매번 새로 만들면 아이콘을 누를 때마다 빈 메모가 쌓인다
+        assert_eq!(
+            blank_plan(vec!["blank".to_string()]),
+            Startup::Restore(vec!["blank".to_string()])
+        );
+        assert_eq!(blank_plan(vec![]), Startup::NewNote);
     }
 
     #[test]
@@ -290,23 +389,6 @@ mod tests {
         n.content = "<p></p>".to_string();
         n.title = "제목만".to_string();
         assert!(!is_blank(&n), "제목이 있으면 빈 메모가 아니다");
-    }
-
-    #[test]
-    fn all_hidden_reuses_an_existing_blank_note() {
-        // 매번 새로 만들면 껐다 켤 때마다 빈 메모가 쌓인다
-        assert_eq!(
-            startup_plan(vec![], vec!["blank".to_string()]),
-            Startup::Restore(vec!["blank".to_string()])
-        );
-    }
-
-    #[test]
-    fn visible_notes_win_over_a_blank_one() {
-        assert_eq!(
-            startup_plan(vec!["open".to_string()], vec!["blank".to_string()]),
-            Startup::Restore(vec!["open".to_string()])
-        );
     }
 
     #[test]
