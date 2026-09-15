@@ -245,7 +245,15 @@
   pointer-events: none;
 }
 #help[hidden] { display: none; }
-#help kbd { font-family: inherit; opacity: 0.72; }
+/*
+ * 자간을 살짝 벌린다. [] 는 두 글자가 거의 붙어 보여서 대괄호 두 개인 줄
+ * 모르고 지나친다.
+ *
+ * 글자 사이에 진짜 공백을 넣으면 안 된다. 입력 규칙은 "[]" 다음 스페이스라서,
+ * 안내에 "[ ]" 라고 적으면 그대로 따라 친 사람은 체크박스를 못 만든다.
+ * 보이는 간격만 벌리고 글자는 그대로 둔다.
+ */
+#help kbd { font-family: inherit; opacity: 0.72; letter-spacing: 0.15em; }
 #help .arrow { opacity: 0.38; }
 
 /* 결과는 설명이 아니라 실제 모양이다. "제목"은 제목처럼 크게 보여준다. */

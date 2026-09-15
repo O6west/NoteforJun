@@ -28,6 +28,14 @@ describe('도움말', () => {
     expect(keys).toEqual(['[]', '#', 'Ctrl+Alt+N'])
   })
 
+  it('[] 사이에 공백을 넣지 않는다', () => {
+    // 붙어 보이는 것은 CSS 자간으로 벌린다. 여기에 진짜 공백을 넣으면
+    // "[ ] " 를 따라 친 사람은 체크박스를 못 만든다 — 입력 규칙이 안 맞는다.
+    const brackets = help.element.querySelector('kbd').textContent
+    expect(brackets).toBe('[]')
+    expect(brackets).not.toContain(' ')
+  })
+
   it('이미 아는 단축키는 적지 않는다', () => {
     // Ctrl+B·I·U는 모든 프로그램에서 똑같이 동작하는 공용 지식이다.
     // 아는 것을 적어두면 안내가 길어지고 "외워야 할 목록"처럼 보인다.
