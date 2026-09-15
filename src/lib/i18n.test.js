@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DICTS, dictFor } from './i18n.js'
+import { DICTS, dictFor, languageFrom } from './i18n.js'
 
 // 표본은 한글이 아닌 것으로 넣는다. 자리표시자에 넣은 한글을 번역 누락으로 오인한다.
 const textOf = (value) => (typeof value === 'function' ? value('Groceries') : value)
@@ -38,6 +38,16 @@ describe('문구', () => {
     for (const lang of ['en-US', 'ja-JP', 'de', 'zh-CN', '', null, undefined]) {
       expect(dictFor(lang), String(lang)).toBe(DICTS.en)
     }
+  })
+
+  it('언어는 창 주소가 정하고, 없으면 브라우저 설정으로 물러선다', () => {
+    // 창을 만든 Rust가 ?lang= 으로 넘겨준다. 화면이 따로 판단하면
+    // Rust가 만든 안내 메모와 언어가 어긋날 수 있다.
+    expect(languageFrom('?id=x&lang=ko', 'en-US')).toBe('ko')
+    expect(languageFrom('?id=x&lang=en', 'ko-KR')).toBe('en')
+    expect(languageFrom('?id=x', 'ko-KR')).toBe('ko-KR')
+    expect(languageFrom('', 'ko-KR')).toBe('ko-KR')
+    expect(languageFrom(undefined, 'ko-KR')).toBe('ko-KR')
   })
 
   it('삭제 확인 문구에 메모 이름이 들어간다', () => {

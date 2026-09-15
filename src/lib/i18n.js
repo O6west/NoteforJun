@@ -124,4 +124,20 @@ export function dictFor(language) {
   return String(language ?? '').toLowerCase().startsWith('ko') ? ko : en
 }
 
-export const t = dictFor(globalThis.navigator?.language)
+/**
+ * 어느 언어로 쓸지는 창을 만든 Rust가 정해 주소에 실어 보낸다(`?lang=ko`).
+ *
+ * 화면이 navigator.language를 따로 읽지 않는 이유는, 그러면 언어를 두 곳에서
+ * 판단하게 되기 때문이다. 윈도우에는 표시 언어와 지역 형식이 따로 있어서 둘을
+ * 다르게 맞춰둔 사람에게는 화면은 영어인데 안내 메모만 한국어로 뜰 수 있었다.
+ * 한 사실을 두 곳에서 판단하면 언젠가 어긋난다.
+ *
+ * 주소에 없으면(테스트처럼 창 없이 불러올 때) 브라우저 설정으로 물러선다.
+ */
+export function languageFrom(search, navigatorLanguage) {
+  return new URLSearchParams(search ?? '').get('lang') ?? navigatorLanguage
+}
+
+export const t = dictFor(
+  languageFrom(globalThis.location?.search, globalThis.navigator?.language),
+)

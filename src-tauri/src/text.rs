@@ -14,6 +14,18 @@ pub fn is_korean() -> bool {
         .unwrap_or(false)
 }
 
+/// 화면 쪽에 넘길 언어 코드.
+///
+/// 언어 판단은 이 파일 한 곳에서만 한다. 전에는 화면이 navigator.language를,
+/// Rust가 OS 로케일을 각각 읽었다. 윈도우에는 표시 언어와 지역 형식이 따로
+/// 있어서, 둘을 다르게 맞춰둔 사람에게는 화면은 영어인데 안내 메모만 한국어로
+/// 뜰 수 있었다. 한 사실을 두 곳에서 판단하면 언젠가 어긋난다.
+///
+/// 창을 만들 때 주소에 실어 보낸다 — 메모 id를 넘기는 것과 같은 방식이다.
+pub fn lang_code() -> &'static str {
+    lang_code_in(is_korean())
+}
+
 /// 목록 창 제목. 작업표시줄과 창 목록에 뜬다.
 pub fn list_window_title() -> &'static str {
     list_window_title_in(is_korean())
@@ -35,6 +47,14 @@ pub fn welcome_body() -> &'static str {
 
 // 아래 세 함수는 언어를 인자로 받는다. 그래야 테스트가 두 갈래를 다 볼 수 있다 —
 // is_korean()에 기대면 테스트가 돌리는 컴퓨터의 언어에 따라 달라진다.
+
+fn lang_code_in(korean: bool) -> &'static str {
+    if korean {
+        "ko"
+    } else {
+        "en"
+    }
+}
 
 fn list_window_title_in(korean: bool) -> &'static str {
     if korean {
@@ -114,6 +134,17 @@ mod tests {
         assert!(has_hangul(welcome_body_in(true)));
         assert!(has_hangul(welcome_title_in(true)));
         assert!(has_hangul(list_window_title_in(true)));
+    }
+
+    /// 화면 문구는 lang_code로 고르고 안내 메모는 Rust가 고른다.
+    /// 둘이 어긋나면 화면은 영어인데 첫 메모만 한국어로 뜬다.
+    #[test]
+    fn lang_code_matches_the_welcome_note() {
+        assert_eq!(lang_code_in(true), "ko");
+        assert!(has_hangul(welcome_body_in(true)));
+
+        assert_eq!(lang_code_in(false), "en");
+        assert!(!has_hangul(welcome_body_in(false)));
     }
 
     #[test]

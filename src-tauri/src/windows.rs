@@ -142,7 +142,11 @@ pub fn open_note(app: &AppHandle, note: &Note) -> tauri::Result<()> {
         return Ok(());
     }
 
-    let url = WebviewUrl::App(format!("note.html?id={}", note.id).into());
+    // 언어를 주소에 실어 보낸다. 화면이 따로 판단하면 Rust가 만든 안내 메모와
+    // 어긋날 수 있다 — 판단은 text.rs 한 곳에서만 한다.
+    let url = WebviewUrl::App(
+        format!("note.html?id={}&lang={}", note.id, crate::text::lang_code()).into(),
+    );
     WebviewWindowBuilder::new(app, &label, url)
         .title("NoteforJun")
         .inner_size(note.window.width as f64, note.window.height as f64)
@@ -191,7 +195,8 @@ pub fn open_list(app: &AppHandle) -> tauri::Result<()> {
         win.set_focus()?;
         return Ok(());
     }
-    WebviewWindowBuilder::new(app, LIST_LABEL, WebviewUrl::App("list.html".into()))
+    let url = WebviewUrl::App(format!("list.html?lang={}", crate::text::lang_code()).into());
+    WebviewWindowBuilder::new(app, LIST_LABEL, url)
         .title(crate::text::list_window_title())
         .inner_size(360.0, 520.0)
         .min_inner_size(360.0, 240.0)
