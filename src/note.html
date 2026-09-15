@@ -11,6 +11,13 @@
         <button class="bar-btn" id="new-note" title="새 메모 (Ctrl+Alt+N)">+</button>
         <input id="title" type="text" maxlength="20" placeholder="제목" spellcheck="false" />
         <span id="saved" aria-hidden="true">✓</span>
+        <button class="bar-btn" id="pin-btn" aria-pressed="true" aria-label="고정">
+          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
+            <path d="M5 2h6v1.2l-1 .8v3.6l1.6 2.2v1.2H4.4v-1.2L6 9.6V4l-1-.8z" fill="currentColor" />
+            <path d="M8 11v3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+          </svg>
+        </button>
+        <button class="bar-btn" id="help-btn" aria-label="도움말">?</button>
         <button class="bar-btn" id="menu-btn" title="메뉴">⋯</button>
         <button class="bar-btn" id="close" title="닫기">×</button>
       </div>

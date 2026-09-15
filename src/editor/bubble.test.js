@@ -34,6 +34,14 @@ describe('드래그 팝업', () => {
     expect(bubble.element.hidden).toBe(true)
   })
 
+  it('팝업이 숨어 있으면 본문 Tab을 가로채지 않는다', () => {
+    bubble.update()
+    const e = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    editor.view.dom.dispatchEvent(e)
+
+    expect(e.defaultPrevented).toBe(false)
+  })
+
   it('글자를 선택하면 나타난다', () => {
     typeText(editor, '중요한 부분')
     editor.commands.selectAll()
@@ -120,6 +128,29 @@ describe('키보드로 쓰기', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     expect(bubble.element.hidden).toBe(true)
+  })
+
+  it('본문에서 Tab을 누르면 팝업 첫 버튼으로 들어간다', () => {
+    // 이 인계가 없으면 브라우저 기본 탭 순서에 맡기게 된다. 팝업이 #shell 맨 끝에
+    // 붙어 있어서 "우연히" 본문 다음 차례가 되는 구조라, DOM 순서가 바뀌거나
+    // WebView2의 탭 처리가 다르면 조용히 깨진다.
+    const e = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    editor.view.dom.dispatchEvent(e)
+
+    expect(e.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(bubble.element.querySelector('[data-mark="bold"]'))
+  })
+
+  it('본문에서 Shift+Tab은 가로채지 않는다 (상단바로 올라가야 한다)', () => {
+    const e = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    editor.view.dom.dispatchEvent(e)
+
+    expect(e.defaultPrevented).toBe(false)
   })
 
   it('마지막 버튼에서 Tab을 누르면 처음 버튼으로 돌아온다', () => {

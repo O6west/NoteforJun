@@ -25,7 +25,15 @@
  * 창을 끌기 위한 손잡이.
  * 제목칸 위에 겹쳐 떠 있어 제목 폭을 전혀 뺏지 않는다. 제목을 20자까지
  * 꽉 채워도 잡을 곳이 사라지지 않는 것이 이 요소가 존재하는 이유다.
- * 보이는 선은 40px이지만 실제로 잡히는 영역은 56px로 넉넉히 둔다.
+ * 보이는 선은 44px이지만 실제로 잡히는 영역은 80×20px로 넉넉히 둔다.
+ *
+ * 폭을 80px로 멈추는 이유: 제목 위에 겹쳐 있고 cursor: grab을 쓰므로,
+ * 넓힌 만큼 제목을 클릭할 수 없는 구간이 된다. 창 최소 폭이 260px이라
+ * 96px을 넘기면 제목칸 절반을 잡아먹는다.
+ *
+ * 높이를 20px로 멈추는 이유: 상단바는 34px이고 그 아래쪽은 어차피
+ * #titlebar의 data-tauri-drag-region이 맡고 있어 끌린다. 더 늘려봐야
+ * 얻는 것 없이 제목 클릭 영역만 줄어든다.
  */
 #grabber {
   position: absolute;
@@ -34,8 +42,8 @@
   transform: translateX(-50%);
   /* 크기 조절 영역(100)보다 위. 겹치는 자리에서는 끌기가 먼저 잡혀야 한다. */
   z-index: 101;
-  width: 56px;
-  height: 13px;
+  width: 80px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -46,12 +54,18 @@
 }
 #grabber i {
   display: block;
-  width: 40px;
-  height: 3px;
+  width: 44px;
+  height: 4px;
   border-radius: 2px;
   /* 상단바 글자색을 그대로 쓰므로 6색 어디서나 알아서 어울린다 */
   background: currentColor;
-  opacity: 0.38;
+  opacity: 0.5;
+  transition: opacity 0.12s ease;
+}
+/* 크기만 키우면 여전히 어디를 노려야 하는지 눈에 안 들어온다.
+   커서를 올렸을 때 진해지는 것이 "여기가 잡는 곳"이라는 신호다. */
+#grabber:hover i {
+  opacity: 0.75;
 }
 
 #title {
@@ -193,3 +207,74 @@
 #bubble button[data-mark='italic'] { font-style: italic; }
 #bubble button[data-mark='bold'] { font-weight: 700; }
 #bubble button[data-mark='underline'] { text-decoration: underline; }
+
+/*
+ * ? 도움말. 서식 팝업(102)보다 위에 둔다 — 겹치면 방금 연 쪽이 보이는 것이 맞다.
+ * 겹치는 일은 드물지 않다. 팝업은 상단바 바로 아래(38px)부터 놓일 수 있고
+ * 도움말도 같은 자리에서 시작하므로, 메모 위쪽에서 글자를 끌면 거의 항상 겹친다.
+ * 도움말이 pointer-events: none 이라 가려진 팝업 버튼은 그대로 눌린다.
+ *
+ * ⋯ 메뉴(10)와는 뜨는 자리가 같다. 층위로 다투지 않고 help.js에서
+ * "메뉴가 열려 있으면 도움말은 뜨지 않는다"로 정리했다. 층위를 낮춰
+ * 해결하려 하면 이번엔 도움말이 메뉴 뒤에 반쯤 가려 보인다.
+ *
+ * 내용만큼만 넓어진다. 좌우를 양쪽 다 잡아두면 창을 키우는 대로 팝업도
+ * 같이 늘어나 본문을 통째로 덮고, 칸 사이가 하염없이 벌어진다. ? 버튼 아래인
+ * 오른쪽에만 붙이고 max-width로 창 밖을 넘지 않게 막는다 — #shell이
+ * overflow: hidden이라 한번 밀려나면 그만큼 잘려서 아예 안 보인다.
+ */
+#help {
+  position: absolute;
+  top: calc(var(--nfj-bar-height) + 4px);
+  right: 8px;
+  z-index: 103;
+  display: grid;
+  grid-template-columns: auto auto auto;
+  align-items: baseline;
+  gap: 5px 10px;
+  width: max-content;
+  max-width: calc(100% - 16px);
+  padding: 9px 11px;
+  border-radius: 6px;
+  background: #2e2e2c;
+  color: #f2f0ea;
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  /* 팝업이 마우스를 가로채면 버튼에서 mouseleave가 안 떠서 안 사라진다 */
+  pointer-events: none;
+}
+#help[hidden] { display: none; }
+#help kbd { font-family: inherit; opacity: 0.72; }
+#help .arrow { opacity: 0.38; }
+#help .result { display: flex; gap: 9px; }
+
+/* 결과는 설명이 아니라 실제 모양이다. 굵게는 굵게, 기울임은 기울여 보여준다. */
+#help .as-h1 { font-size: 15px; font-weight: 700; }
+#help .as-bold { font-weight: 700; }
+#help .as-italic { font-style: italic; }
+#help .as-underline { text-decoration: underline; }
+
+/*
+ * ? 는 + × ⋯ 보다 획이 잘아서, .bar-btn의 20px로 두면 혼자 커 보인다.
+ *
+ * bar.css가 아니라 여기에 두는 것은 #help-btn이 메모 창에만 있는 버튼이기
+ * 때문이다. resize.css가 경고하는 "한 요소의 스타일이 두 파일에 흩어져
+ * 불러오는 순서가 승패를 가르는" 경우에는 해당하지 않는다 — id 선택자가
+ * .bar-btn의 class 선택자를 명시도로 이기므로 순서와 무관하다.
+ */
+#help-btn { font-size: 15px; font-weight: 700; }
+
+/*
+ * 고정(핀) 버튼.
+ * 풀린 상태를 기울어진 핀으로 보여준다. 아이콘을 두 개 그리는 대신 하나를
+ * 돌리는 것은, 두 모양이 서로 "같은 핀의 다른 상태"로 읽히게 하기 위해서다.
+ */
+#pin-btn svg {
+  display: block;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+#pin-btn[aria-pressed='false'] svg {
+  transform: rotate(40deg);
+  opacity: 0.5;
+}

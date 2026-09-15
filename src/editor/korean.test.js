@@ -83,7 +83,7 @@ describe('한글과 서식', () => {
   })
 
   it('체크박스 안에서 한글을 쳐도 체크박스가 유지된다', () => {
-    typeText(editor, '- ')
+    typeText(editor, '[] ')
     typeHangul(editor)
     const html = editor.getHTML()
     expect(html).toContain('data-type="taskList"')

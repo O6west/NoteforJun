@@ -16,6 +16,7 @@ import {
 } from './lib/api.js'
 import { COLORS, DEFAULT_COLOR, colorOf } from './lib/colors.js'
 import { debounce } from './lib/debounce.js'
+import { createHelp } from './lib/help.js'
 import { installResizeZones } from './lib/resize.js'
 import { serialize } from './lib/serialize.js'
 import { clampTitle } from './lib/title.js'
@@ -28,6 +29,7 @@ const id = new URLSearchParams(location.search).get('id')
 const shell = document.getElementById('shell')
 const titleInput = document.getElementById('title')
 const menu = document.getElementById('menu')
+const pinBtn = document.getElementById('pin-btn')
 const swatches = document.getElementById('swatches')
 
 let note = null
@@ -43,13 +45,24 @@ let closeHeld = false
  * 저장이 끝났다는 표시를 잠깐 띄운다.
  * 아무 신호도 없이 조용히 저장하면 사용자는 저장됐는지 알 수 없고,
  * 그렇다고 늘 띄워두면 잔소리가 된다. 그래서 떴다가 스스로 사라진다.
+ *
+ * quiet이면 표시를 띄우지 않는다. ✓ 는 "쓴 글이 남았다"를 알리는 것인데,
+ * 색·핀·창 위치는 눈으로 이미 바뀐 것이 보이므로 또 알릴 일이 아니다.
+ * 하필 ✓ 자리가 핀 버튼 바로 옆이라, 누를 때마다 손가락 옆에서 번쩍인다.
+ *
+ * 다만 quiet이어도 앞서 뜬 경고는 지운다. 저장이 되고 있는데 ⚠ 가 남아
+ * 있으면 그 경고가 거짓말이 되고, 창을 닫을 때 한 번 붙잡기까지 한다.
  */
-function flashSaved() {
+function flashSaved(quiet) {
   lastSaveFailed = false
   closeHeld = false
   savedMark.textContent = '✓'
   savedMark.title = ''
   savedMark.classList.remove('warn')
+  if (quiet) {
+    savedMark.classList.remove('show')
+    return
+  }
   savedMark.classList.add('show')
   clearTimeout(savedTimer)
   savedTimer = setTimeout(() => savedMark.classList.remove('show'), 900)
@@ -85,17 +98,38 @@ function showLoadError(err) {
 /** 저장은 한 번에 하나씩만 나간다. 겹치면 오래된 결과가 최신 결과를 덮는다. */
 const saveInOrder = serialize((n) => saveNote(n))
 
-/** 저장하는 유일한 통로. 성공하면 표시를 띄우고, 실패하면 경고를 남긴다. */
-function persist() {
+/**
+ * 저장하는 유일한 통로. 실패하면 경고를 남긴다.
+ *
+ * 본문을 여기서 읽는 이유는, 이곳이 모든 저장 경로가 반드시 지나는 한 지점이기
+ * 때문이다. 타이핑·제목·색·핀·창 이동·닫기가 전부 여기로 모이므로,
+ * 어느 경로로 들어와도 저장되는 것은 지금 화면에 있는 그대로다.
+ *
+ * quiet은 ✓ 를 띄울지만 가른다. 저장은 어느 쪽이든 똑같이 한다 —
+ * 색이나 핀을 바꾸고 글을 안 쓰면 그 설정이 사라지면 안 된다.
+ */
+function persist(quiet = false) {
   if (!note) return Promise.resolve()
-  return saveInOrder(note).then(flashSaved, showSaveError)
+  if (editor) note.content = editor.getHTML()
+  return saveInOrder(note).then(() => flashSaved(quiet), showSaveError)
+}
+
+/** 아이콘을 만져서 바뀐 것은 조용히, 그리고 바로 저장한다. 미룰 이유가 없다. */
+function persistQuietly() {
+  return persist(true)
 }
 
 const saver = debounce(() => persist(), SAVE_DELAY)
 
 // 무슨 일이 있어도 창은 닫을 수 있어야 한다. 불러오기가 실패해도 마찬가지다.
 document.getElementById('close').addEventListener('click', async () => {
-  await saver.flush()
+  // flush()가 아니라 cancel() + persist()인 이유: flush는 대기 중인 타이머가
+  // 없으면 그냥 돌아온다. 이미 출발해 진행 중인 저장은 기다리지 않는다는 뜻이다.
+  // 그대로 hide_note_window가 나가면, 그쪽이 디스크에서 읽은 옛 본문으로 방금
+  // 저장한 글을 덮어쓴다. persist()는 saveInOrder 줄 맨 뒤에 서므로, 이걸
+  // 기다리면 앞의 저장이 전부 끝난 뒤에야 다음으로 넘어간다.
+  saver.cancel()
+  await persist()
   if (remember) await remember.flush()
 
   // 저장이 실패했는데 창을 숨기면 경고를 볼 수 없고 글도 잃는다.
@@ -110,6 +144,12 @@ document.getElementById('close').addEventListener('click', async () => {
 
   await hideNoteWindow(id)
 })
+
+/** 핀 상태를 버튼에 비춘다. 창에 실제로 거는 것은 누를 때와 boot에서 한다. */
+function showPinned(pinned) {
+  pinBtn.setAttribute('aria-pressed', String(pinned))
+  pinBtn.title = pinned ? '고정 해제' : '항상 위에 고정'
+}
 
 function applyColor(key) {
   // 저장된 색이 알 수 없는 값이면 노랑으로 되돌린다.
@@ -130,7 +170,7 @@ function buildSwatches() {
     btn.addEventListener('click', () => {
       note.color = c.key
       applyColor(c.key)
-      saver.call()
+      persistQuietly()
       menu.hidden = true
     })
     swatches.appendChild(btn)
@@ -165,12 +205,10 @@ async function boot() {
   editor = createEditor({
     element: document.getElementById('editor'),
     content: note.content,
-    onUpdate: (html) => {
-      note.content = html
-      saver.call()
-    },
+    onUpdate: () => saver.call(),
   })
   createBubble({ editor, container: shell })
+  createHelp({ button: document.getElementById('help-btn'), container: shell, menu })
 
   document.getElementById('new-note').addEventListener('click', () =>
     createNote().catch((err) => showSaveError(err)),
@@ -187,6 +225,20 @@ async function boot() {
     menu.hidden = true
   })
 
+  const win = getCurrentWindow()
+
+  showPinned(note.window.pinned)
+  pinBtn.addEventListener('click', async () => {
+    note.window.pinned = !note.window.pinned
+    showPinned(note.window.pinned)
+    try {
+      await win.setAlwaysOnTop(note.window.pinned)
+    } catch (err) {
+      console.error('고정 상태를 바꾸지 못했습니다', err)
+    }
+    persistQuietly()
+  })
+
   // 창 위치·크기는 이동이 끝난 시점에만 저장한다.
   //
   // 반드시 논리 픽셀로 바꿔서 저장한다. outerPosition/innerSize는 물리 픽셀을
@@ -194,7 +246,6 @@ async function boot() {
   // 125%·150%인 환경에서 다시 열 때마다 창이 그 배율만큼 커지고 멀어진다.
   // 두세 번이면 화면 밖으로 나가고, 제목 표시줄이 없어 되돌릴 방법이 없다.
   // 정수로 반올림하는 것도 필수다. WindowState는 정수 필드라 소수가 가면 저장이 깨진다.
-  const win = getCurrentWindow()
   remember = debounce(async () => {
     const scale = await win.scaleFactor()
     const pos = (await win.outerPosition()).toLogical(scale)
@@ -205,8 +256,10 @@ async function boot() {
       width: Math.round(size.width),
       height: Math.round(size.height),
       visible: true,
+      // 이 줄이 없으면 창을 옮길 때마다 핀 설정이 조용히 지워진다
+      pinned: note.window.pinned,
     }
-    return persist()
+    return persistQuietly()
   }, SAVE_DELAY)
   await win.onMoved(() => remember.call())
   await win.onResized(() => remember.call())
