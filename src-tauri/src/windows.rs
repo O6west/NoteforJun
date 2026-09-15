@@ -47,8 +47,8 @@ pub struct Candidate {
     pub id: String,
     /// 앱이 마지막으로 켜져 있을 때 화면에 떠 있었는가
     pub was_visible: bool,
-    /// 제목도 본문도 비어 있는가
-    pub blank: bool,
+    /// 본문이 비어 있는가 (제목은 보지 않는다)
+    pub body_empty: bool,
     /// ISO 8601. 앞자리부터 자릿수가 고정돼 있어 문자열 비교가 곧 시간순이다.
     pub updated_at: String,
 }
@@ -58,7 +58,7 @@ impl From<&Note> for Candidate {
         Self {
             id: n.id.clone(),
             was_visible: n.window.visible,
-            blank: is_blank(n),
+            body_empty: is_body_empty(n),
             updated_at: n.updated_at.clone(),
         }
     }
@@ -73,11 +73,12 @@ impl From<&Note> for Candidate {
 /// "그만 보기"가 아니기 때문이다. 화면에 떠 있던 메모를 앞세우는 것은,
 /// 재시작 직전의 책상이 그중 가장 확실한 단서이기 때문이다.
 ///
-/// 빈 메모를 빼는 이유는 되살려봐야 사용자가 얻을 것이 없어서다. 다만
-/// 아무것도 안 띄우는 선택지는 없다 — 메모 창에는 OS 테두리가 없고 트레이
-/// 아이콘도 쓰지 않으므로, 창이 하나도 없으면 앱은 켜져 있는데 닿을 방법이 없다.
+/// 본문이 빈 메모를 빼는 이유는 되살려봐야 볼 것이 없어서다. 제목만 써둔
+/// 메모도 여기서 빠진다 — 제목은 무엇을 적으려 했는지의 표시일 뿐이고,
+/// 책상에 다시 올려둘 이유는 적어둔 내용 쪽에 있다. (지우지는 않는다.
+/// 지우는 판단은 is_blank가 따로 한다.)
 pub fn startup_plan(candidates: Vec<Candidate>) -> Startup {
-    let mut keep: Vec<Candidate> = candidates.into_iter().filter(|c| !c.blank).collect();
+    let mut keep: Vec<Candidate> = candidates.into_iter().filter(|c| !c.body_empty).collect();
     keep.sort_by(|a, b| {
         b.was_visible
             .cmp(&a.was_visible)
@@ -273,6 +274,15 @@ fn apply(
     }
 }
 
+/// 본문이 빈 메모. 되살릴지 판단할 때만 쓴다.
+///
+/// 지우는 판단(is_blank)과 일부러 나눠 두었다. 되살리는 기준은 "볼 것이
+/// 있느냐"이고 지우는 기준은 "잃을 것이 없느냐"인데, 제목만 써둔 메모는
+/// 그 둘 사이에 있다 — 다시 띄울 만큼은 아니지만 지워서도 안 된다.
+pub fn is_body_empty(note: &Note) -> bool {
+    crate::html::strip_html(&note.content).trim().is_empty()
+}
+
 /// 제목도 본문도 비어 있는 메모. 다시 내밀어도, 지워도 사용자가 잃을 것이 없다.
 pub fn is_blank(note: &Note) -> bool {
     note.title.trim().is_empty() && crate::html::strip_html(&note.content).trim().is_empty()
@@ -305,11 +315,11 @@ mod tests {
         assert_eq!(next_position(Some((100, 1000)), SCREEN, SIZE), (48, 48));
     }
 
-    fn cand(id: &str, was_visible: bool, blank: bool, updated_at: &str) -> Candidate {
+    fn cand(id: &str, was_visible: bool, body_empty: bool, updated_at: &str) -> Candidate {
         Candidate {
             id: id.to_string(),
             was_visible,
-            blank,
+            body_empty,
             updated_at: updated_at.to_string(),
         }
     }
@@ -333,10 +343,11 @@ mod tests {
     }
 
     #[test]
-    fn blank_notes_are_never_restored() {
+    fn body_empty_notes_are_never_restored() {
+        // 제목만 써둔 메모도 여기 들어온다. 되살리는 기준은 적어둔 내용이다.
         let plan = startup_plan(vec![
-            cand("blank", true, true, "2026-09-13T09:00:00Z"),
-            cand("written", false, false, "2026-09-13T08:00:00Z"),
+            cand("title-only", true, true, "2026-09-14T09:00:00Z"),
+            cand("written", false, false, "2026-09-14T08:00:00Z"),
         ]);
         assert_eq!(ids(plan), vec!["written".to_string()]);
     }
@@ -398,6 +409,24 @@ mod tests {
         n.content = "<p></p>".to_string();
         n.title = "제목만".to_string();
         assert!(!is_blank(&n), "제목이 있으면 빈 메모가 아니다");
+    }
+
+    #[test]
+    fn body_empty_ignores_the_title() {
+        let mut n = crate::note::Note {
+            id: "x".to_string(),
+            title: "제목만".to_string(),
+            content: "<p></p>".to_string(),
+            color: "yellow".to_string(),
+            window: crate::note::WindowState::default(),
+            created_at: "2026-09-14T00:00:00Z".to_string(),
+            updated_at: "2026-09-14T00:00:00Z".to_string(),
+        };
+        assert!(is_body_empty(&n), "제목이 있어도 본문이 비면 되살리지 않는다");
+        assert!(!is_blank(&n), "그렇다고 지워도 되는 메모는 아니다");
+
+        n.content = "<p>적어둔 것</p>".to_string();
+        assert!(!is_body_empty(&n));
     }
 
     #[test]
