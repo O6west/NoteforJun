@@ -153,9 +153,9 @@ pub fn open_note(app: &AppHandle, note: &Note) -> tauri::Result<()> {
         .position(note.window.x as f64, note.window.y as f64)
         .decorations(false)
         .resizable(true)
-        // 다른 프로그램을 클릭해도 메모는 앞에 남는다. 포스트잇으로 쓰는 앱인데
-        // 뒤로 숨으면 볼 때마다 찾아와야 한다. 기본은 고정이고, 거슬리는 메모만
-        // 상단바 핀으로 내린다 — 메모마다 따로 기억한다.
+        // 핀을 꽂은 메모만 다른 창 위에 남는다. 기본은 꺼짐이다 — 새 메모를
+        // 계속 만드는 앱이라 켜 두면 만들 때마다 끄게 된다. 붙잡아 두고 싶은
+        // 메모는 드물게 있고, 그때 상단바 핀을 누른다. 메모마다 따로 기억한다.
         .always_on_top(note.window.pinned)
         // 최대화를 막는다. 상단바를 더블클릭하면 Tauri가 최대화하는데, 우리 창에는
         // OS 제목 표시줄이 없어 되돌릴 버튼이 없다. 한번 최대화되면 빠져나올 길이
@@ -212,14 +212,50 @@ pub fn open_list(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+/// 처음 켰을 때 내미는 메모의 제목과 본문.
+///
+/// 이 앱에는 설명서도 첫 실행 안내 화면도 없다. 그 자리를 첫 메모가 대신한다 —
+/// 읽다 보면 제목·큰 글씨·체크박스·형광펜을 이미 다 본 셈이 된다.
+/// 안내가 메모 안에 들어 있으므로, 다 읽었으면 지우면 그만이다.
+const WELCOME_TITLE: &str = "제목 입력도 가능";
+const WELCOME_BODY: &str = concat!(
+    "<h1>내가 쓸 때 편하라고 만든 앱. NoteforJun</h1>",
+    "<ul data-type=\"taskList\"><li data-checked=\"false\"><p>이런 것도 됩니다</p></li></ul>",
+    "<p><mark>이런 것도 가능하구요!</mark></p>",
+    "<p></p>",
+    "<p><strong>편하게 메모하세요. 다른 건 없습니다.</strong></p>",
+    "<p></p>",
+    "<p><strong>Made by Jun Oh</strong></p>",
+);
+
 /// 앱을 켤 때 호출한다.
 ///
 /// 내용이 있는 메모를 최대 MAX_RESTORE개까지 되살린다 — 책상을 원래대로
 /// 돌려놓는 일이다. 되살릴 게 없으면 적을 수 있는 빈 메모를 내민다.
+///
+/// 메모가 하나도 없으면 처음 켠 것으로 보고 안내 메모를 내민다. 빈 메모를
+/// 내밀면 무엇을 할 수 있는지 알 길이 없기 때문이다. 한 장이라도 있으면
+/// 여기로 오지 않으므로, 다 읽고 지운 뒤에는 다시 나타나지 않는다.
 pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
     let notes = load_all(notes_dir);
+    if notes.is_empty() {
+        return open_welcome(app, notes_dir);
+    }
     let candidates: Vec<Candidate> = notes.iter().map(Candidate::from).collect();
     apply(app, notes_dir, &notes, startup_plan(candidates))
+}
+
+fn open_welcome(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
+    let mut note = crate::commands::new_note();
+    note.title = WELCOME_TITLE.to_string();
+    note.content = WELCOME_BODY.to_string();
+    let screen = primary_screen_logical(app);
+    let (x, y) = next_position(None, screen, (note.window.width, note.window.height));
+    note.window.x = x;
+    note.window.y = y;
+    // 저장에 실패해도 창은 띄운다. 안내를 못 보여주는 것보다 낫다.
+    let _ = storage::save(notes_dir, &note);
+    open_note(app, &note)
 }
 
 /// 작업표시줄 아이콘을 눌렀을 때. 적을 수 있는 빈 메모를 내민다.
@@ -430,6 +466,33 @@ mod tests {
 
         n.content = "<p>적어둔 것</p>".to_string();
         assert!(!is_body_empty(&n));
+    }
+
+    #[test]
+    fn welcome_note_shows_what_the_app_can_do() {
+        // 설명서도 첫 실행 안내 화면도 없으므로 이 메모가 그 자리를 대신한다.
+        // 여기서 뭔가 빠지면 사용자는 그 기능이 있는 줄도 모르고 지나간다.
+        assert!(WELCOME_BODY.contains("<h1>"), "큰 글씨");
+        assert!(WELCOME_BODY.contains("taskList"), "체크박스");
+        assert!(WELCOME_BODY.contains("<mark>"), "형광펜");
+        assert!(!WELCOME_TITLE.trim().is_empty(), "제목칸도 쓸 수 있다는 것을 보여준다");
+    }
+
+    #[test]
+    fn welcome_note_survives_a_restart() {
+        // 본문이 비면 되살리는 대상에서 빠진다. 안내를 다 읽기 전에 컴퓨터를
+        // 껐다 켰다고 사라지면 곤란하다.
+        let note = crate::note::Note {
+            id: "welcome".to_string(),
+            title: WELCOME_TITLE.to_string(),
+            content: WELCOME_BODY.to_string(),
+            color: "yellow".to_string(),
+            window: crate::note::WindowState::default(),
+            created_at: "2026-09-15T00:00:00Z".to_string(),
+            updated_at: "2026-09-15T00:00:00Z".to_string(),
+        };
+        assert!(!is_body_empty(&note));
+        assert!(!is_blank(&note));
     }
 
     #[test]
