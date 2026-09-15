@@ -50,7 +50,7 @@ pub fn run() {
             if let Err(err) = register_shortcut(app.handle()) {
                 eprintln!("전역 단축키를 등록하지 못했습니다 (다른 프로그램이 쓰는 중일 수 있습니다): {err}");
             }
-            enable_autostart(app.handle());
+            init_autostart(app.handle(), &base);
 
             windows::restore_all(app.handle(), &notes)?;
             Ok(())
@@ -64,6 +64,8 @@ pub fn run() {
             commands::open_note_window,
             commands::hide_note_window,
             commands::open_list_window,
+            commands::autostart_enabled,
+            commands::set_autostart,
         ])
         .run(tauri::generate_context!())
         .expect("error while running NoteforJun");
@@ -91,12 +93,23 @@ fn register_shortcut(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::E
     Ok(())
 }
 
-fn enable_autostart(app: &tauri::AppHandle) {
+/// 자동 시작은 처음 켤 때 한 번만 켠다.
+///
+/// 전에는 켤 때마다 꺼져 있는지 확인하고 꺼져 있으면 다시 켰다. 그래서 윈도우
+/// 시작 프로그램에서 꺼도 다음 실행에 되살아났다 — 앱이 사용자의 결정을
+/// 되돌리는 셈이다. 남의 컴퓨터에 깔릴 것을 생각하면 그대로 둘 수 없다.
+///
+/// 표시 파일을 하나 남겨 두 번째부터는 손대지 않는다. 켜고 끄는 것은
+/// ⋯ 메뉴에서 한다. 처음에 켜 두는 것은, 켜 두지 않으면 재부팅한 뒤
+/// 메모가 사라진 것처럼 보이기 때문이다.
+fn init_autostart(app: &tauri::AppHandle, base: &std::path::Path) {
     use tauri_plugin_autostart::ManagerExt;
-    let manager = app.autolaunch();
-    if manager.is_enabled().unwrap_or(false) {
+
+    let marker = base.join("autostart-set");
+    if marker.exists() {
         return;
     }
-    // 설정 화면이 없으므로 설치 즉시 켠다. 끄고 싶으면 윈도우 시작 프로그램에서 끈다.
-    let _ = manager.enable();
+    let _ = app.autolaunch().enable();
+    // 표시 파일을 못 쓰면 다음에 또 켜게 된다. 그래도 앱은 켜져야 한다.
+    let _ = std::fs::write(&marker, "");
 }

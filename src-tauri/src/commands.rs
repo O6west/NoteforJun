@@ -158,6 +158,24 @@ pub async fn open_list_window(app: AppHandle) -> Result<(), String> {
     windows::open_list(&app).map_err(|e| e.to_string())
 }
 
+/// 지금 윈도우 시작 프로그램에 등록돼 있는가.
+///
+/// 앱 안에 따로 기억해 두지 않고 매번 실제 등록 상태를 읽는다. 사용자가
+/// 윈도우 설정에서 직접 껐을 수도 있는데, 그때 메뉴의 체크만 켜져 있으면
+/// 그 체크가 거짓말이 된다.
+#[tauri::command]
+pub fn autostart_enabled(app: AppHandle) -> bool {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+#[tauri::command]
+pub fn set_autostart(on: bool, app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_autostart::ManagerExt;
+    let manager = app.autolaunch();
+    if on { manager.enable() } else { manager.disable() }.map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

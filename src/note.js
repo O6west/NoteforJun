@@ -8,11 +8,13 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { createBubble } from './editor/bubble.js'
 import { createEditor } from './editor/editor.js'
 import {
+  autostartEnabled,
   createNote,
   hideNoteWindow,
   loadNote,
   openListWindow,
   saveNote,
+  setAutostart,
 } from './lib/api.js'
 import { COLORS, DEFAULT_COLOR, colorOf } from './lib/colors.js'
 import { debounce } from './lib/debounce.js'
@@ -217,9 +219,31 @@ async function boot() {
     menu.hidden = true
     openListWindow().catch((err) => showSaveError(err))
   })
+  // 윈도우 켤 때 자동 실행. 앱 안에 따로 기억하지 않고 메뉴를 열 때마다
+  // 실제 등록 상태를 읽는다 — 사용자가 윈도우 설정에서 직접 껐을 수 있고,
+  // 그때 체크만 켜져 있으면 그 체크가 거짓말이 된다.
+  const autostartBtn = document.getElementById('autostart')
+  const showAutostart = (on) => autostartBtn.setAttribute('aria-pressed', String(on))
+  autostartBtn.addEventListener('click', async (e) => {
+    // 메뉴를 닫지 않는다. 눌러서 체크가 바뀌는 것을 보는 게 이 항목의 응답이다.
+    e.stopPropagation()
+    const next = autostartBtn.getAttribute('aria-pressed') !== 'true'
+    try {
+      await setAutostart(next)
+      showAutostart(next)
+    } catch (err) {
+      console.error('자동 실행 설정을 바꾸지 못했습니다', err)
+    }
+  })
+
   document.getElementById('menu-btn').addEventListener('click', (e) => {
     e.stopPropagation()
     menu.hidden = !menu.hidden
+    if (!menu.hidden) {
+      autostartEnabled().then(showAutostart, (err) => {
+        console.error('자동 실행 상태를 읽지 못했습니다', err)
+      })
+    }
   })
   document.addEventListener('click', () => {
     menu.hidden = true

@@ -177,6 +177,25 @@
 }
 .menu-item:hover { background: rgba(0, 0, 0, 0.06); }
 
+/*
+ * 켜고 끄는 항목에는 오른쪽에 ✓ 를 붙인다.
+ * 꺼져 있을 때도 빈 자리를 남기는 이유는, 체크가 나타날 때마다 글자가
+ * 밀리면 눌렀을 때 항목이 들썩이기 때문이다.
+ */
+.menu-item[aria-pressed] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.menu-item[aria-pressed]::after {
+  content: '✓';
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0;
+}
+.menu-item[aria-pressed='true']::after { opacity: 0.75; }
+
 #bubble {
   position: absolute;
   /* 크기 조절 영역(100)과 상단바 버튼(101)보다 위. 겹치는 자리에서는
