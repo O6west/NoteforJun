@@ -44,19 +44,23 @@ describe('체크박스', () => {
     expect(editor.getHTML()).toContain('data-type="taskList"')
   })
 
-  it('Enter를 누르면 다음 항목이 생긴다', () => {
-    typeText(editor, '- 장보기')
-    editor.commands.splitListItem('taskItem')
+  it('Enter를 누르면 다음 체크박스가 생기지 않고 목록에서 빠져나온다', () => {
+    // 자동으로 만들어 주면 [] 를 칠 일이 없어져 손에 익지 않는다.
+    //
+    // editor.commands.keyboardShortcut('Enter')는 tiptap의 captureTransaction으로
+    // 감싸 실행되는데, 그 안에서 splitListItem과 liftListItem을 각각 실제
+    // 트랜잭션으로 디스패치하면 캡처 중인 트랜잭션과 충돌해 에러가 난다.
+    // 실제 Enter 키 입력은 그런 캡처 없이 handleKeyDown으로 바로 들어오므로,
+    // 여기서도 그 경로로 직접 흘려보내 실제 키 입력을 검증한다.
+    typeText(editor, '[] 장보기')
+    editor.view.someProp('handleKeyDown', (f) =>
+      f(editor.view, new KeyboardEvent('keydown', { key: 'Enter' })),
+    )
     typeText(editor, '운동')
-    const items = editor.getHTML().match(/data-checked=/g) ?? []
-    expect(items).toHaveLength(2)
-  })
 
-  it('빈 항목에서 Enter를 누르면 목록에서 빠져나온다', () => {
-    typeText(editor, '- 장보기')
-    editor.commands.splitListItem('taskItem')
-    editor.commands.liftListItem('taskItem')
-    expect(editor.getHTML()).toContain('<p></p>')
+    const html = editor.getHTML()
+    expect(html.match(/data-checked=/g) ?? []).toHaveLength(1)
+    expect(html).toContain('<p>운동</p>')
   })
 })
 
