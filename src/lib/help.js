@@ -12,10 +12,9 @@
  * 뜨기까지 1초 넘게 걸리며, 키보드 초점으로는 열리지 않아서다.
  */
 const LINES = [
-  ['[] 또는 - 다음 스페이스', '할 일 박스'],
-  ['# 다음 스페이스', '제목'],
-  ['Ctrl+B / I / U', '굵게 / 기울임 / 밑줄'],
-  ['글자를 끌면', '형광펜 포함 서식 팝업'],
+  ['[]', '→   ☐ 할 일'],
+  ['#', '→   제목'],
+  ['Ctrl+B  I  U', ''],
   ['Ctrl+Alt+N', '새 메모'],
 ]
 
@@ -25,7 +24,7 @@ export function createHelp({ button, container, menu = null }) {
   element.hidden = true
   element.setAttribute('role', 'tooltip')
 
-  // 두 칸짜리 격자로 쌓는다. 칸을 나눠두면 창이 최소 폭(220px)까지 좁아져도
+  // 두 칸짜리 격자로 쌓는다. 칸을 나눠두면 창이 최소 폭(260px)까지 좁아져도
   // 설명만 줄바꿈되고 왼쪽 열은 그대로 줄이 맞는다.
   for (const [key, what] of LINES) {
     const k = document.createElement('kbd')

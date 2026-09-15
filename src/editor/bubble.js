@@ -64,7 +64,7 @@ export function createBubble({ editor, container }) {
 
       // 좌우로 가둔다. 그냥 두면 줄 끝을 드래그했을 때 오른쪽 끝의 형광펜 버튼이
       // 창 밖으로 밀려나 눌리지 않는다.
-      // 창 최소 폭이 220px이고 팝업은 132px이면 충분하므로 이 식은 항상 성립한다.
+      // 창 최소 폭이 260px이고 팝업은 132px이면 충분하므로 이 식은 항상 성립한다.
       const centerX = (start.left + end.left) / 2 - box.left
       const maxLeft = Math.max(8, box.width - w - 8)
       element.style.left = `${Math.min(maxLeft, Math.max(8, centerX - w / 2))}px`

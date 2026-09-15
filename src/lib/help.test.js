@@ -23,24 +23,18 @@ describe('도움말', () => {
     expect(help.element.hidden).toBe(true)
   })
 
-  it('다섯 가지를 알려준다', () => {
+  it('네 가지를 알려준다', () => {
     const keys = [...help.element.querySelectorAll('kbd')].map((k) => k.textContent)
-    expect(keys).toEqual([
-      '[] 또는 - 다음 스페이스',
-      '# 다음 스페이스',
-      'Ctrl+B / I / U',
-      '글자를 끌면',
-      'Ctrl+Alt+N',
-    ])
+    expect(keys).toEqual(['[]', '#', 'Ctrl+B  I  U', 'Ctrl+Alt+N'])
   })
 
   it('실제로 되는 것만 적혀 있다', () => {
-    // rules.js의 TASK_INPUT_RULE이 "[] "와 "- " 둘 다 받는다.
-    // 안내에 하나만 적으면 반쪽짜리 문서가 된다.
+    // rules.js의 TASK_INPUT_RULE은 이제 "[] "만 받는다.
+    // 안내에 - 가 남아 있으면 거짓을 알려주는 셈이다.
     const text = help.element.textContent
     expect(text).toContain('[]')
-    expect(text).toContain('-')
     expect(text).toContain('할 일')
+    expect(text).not.toContain('-')
   })
 
   it('커서를 올리면 나타나고 치우면 사라진다', () => {
