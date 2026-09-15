@@ -1,18 +1,17 @@
 *English · [한국어](README.ko.md)*
 
-<img src="src-tauri/icons/128x128@2x.png" alt="" width="84" align="left">
+<img src="src-tauri/icons/128x128@2x.png" alt="" width="88" align="left">
 
-# NoteforJun
+### NoteforJun
 
 **A note app made for Jun**
 
-<br clear="left">
+*Just take notes. Nothing else.*
 
-> Just take notes. Nothing else.
+<br clear="left">
 
 <img src="docs/images/note-en.png" alt="A NoteforJun window. The title bar shows the note title with pin, help, menu and close buttons. The body reads 'Just take notes' as a heading, followed by two checkbox lines, a highlighted phrase, and a bold line." width="520">
 
----
 
 ## Why I made this
 
@@ -37,7 +36,6 @@ Building it for exactly one person is what kept it clean. When you don't know wh
 
 What came out is Sticky Notes with those four things filled in and **nothing else added**. I made it for me — but if you got stuck in the same place I did, it'll probably fit you too.
 
----
 
 ## Three principles
 
@@ -55,7 +53,6 @@ Sticky Notes survived not because it has few features, but because there is **no
 
 Type `#` and the text gets bigger. Never knowing that costs you nothing. Select text and formatting buttons appear. Never using them costs you nothing either. Every extra is built so that you **can use the app without knowing it, and come out ahead if you stumble onto it**.
 
----
 
 ## How to use it
 
@@ -81,7 +78,6 @@ A few other things worth knowing.
 - **After a restart**, up to five notes you were last working in come back. Notes with an empty body are skipped.
 - **When notes pile up**, `⋯ → All notes` gives you color stripes, previews, and search.
 
----
 
 ## Left out on purpose
 
@@ -98,7 +94,6 @@ This list describes the app better than the feature list does.
 | Export | The saved files are already human-readable, sitting in a folder |
 | A settings screen | This entire list exists so that there doesn't have to be one |
 
----
 
 ## Where your notes live
 
@@ -106,7 +101,6 @@ Under `%APPDATA%\NoteforJun\notes\` — one JSON file per note.
 
 Nothing is uploaded. No account, no login. Uninstalling the app leaves the folder alone, and you can open any note in a text editor and read it.
 
----
 
 ## Built with
 
@@ -130,7 +124,6 @@ cargo test --manifest-path src-tauri/Cargo.toml # window and storage tests
 
 The app follows your OS language: Korean on a Korean system, English everywhere else. There is no language picker — people want to work in the language their computer is already set to, and asking again would be asking a question that's already been answered.
 
----
 
 ## Design notes
 
@@ -143,7 +136,6 @@ The documents are in Korean.
 
 Code comments follow the same rule: not *what* this does, but *why* it is this way.
 
----
 
 ## License
 
