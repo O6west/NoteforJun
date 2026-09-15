@@ -258,3 +258,17 @@
  * .bar-btn의 class 선택자를 명시도로 이기므로 순서와 무관하다.
  */
 #help-btn { font-size: 15px; font-weight: 700; }
+
+/*
+ * 고정(핀) 버튼.
+ * 풀린 상태를 기울어진 핀으로 보여준다. 아이콘을 두 개 그리는 대신 하나를
+ * 돌리는 것은, 두 모양이 서로 "같은 핀의 다른 상태"로 읽히게 하기 위해서다.
+ */
+#pin-btn svg {
+  display: block;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+#pin-btn[aria-pressed='false'] svg {
+  transform: rotate(40deg);
+  opacity: 0.5;
+}

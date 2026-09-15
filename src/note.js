@@ -29,6 +29,7 @@ const id = new URLSearchParams(location.search).get('id')
 const shell = document.getElementById('shell')
 const titleInput = document.getElementById('title')
 const menu = document.getElementById('menu')
+const pinBtn = document.getElementById('pin-btn')
 const swatches = document.getElementById('swatches')
 
 let note = null
@@ -125,6 +126,12 @@ document.getElementById('close').addEventListener('click', async () => {
   await hideNoteWindow(id)
 })
 
+/** 핀 상태를 버튼에 비춘다. 창에 실제로 거는 것은 누를 때와 boot에서 한다. */
+function showPinned(pinned) {
+  pinBtn.setAttribute('aria-pressed', String(pinned))
+  pinBtn.title = pinned ? '고정 해제' : '항상 위에 고정'
+}
+
 function applyColor(key) {
   // 저장된 색이 알 수 없는 값이면 노랑으로 되돌린다.
   // 그냥 넣으면 --nfj-bar가 안 풀려서 상단바 배경이 통째로 사라진다.
@@ -207,6 +214,17 @@ async function boot() {
   // 두세 번이면 화면 밖으로 나가고, 제목 표시줄이 없어 되돌릴 방법이 없다.
   // 정수로 반올림하는 것도 필수다. WindowState는 정수 필드라 소수가 가면 저장이 깨진다.
   const win = getCurrentWindow()
+  showPinned(note.window.pinned)
+  pinBtn.addEventListener('click', async () => {
+    note.window.pinned = !note.window.pinned
+    showPinned(note.window.pinned)
+    try {
+      await win.setAlwaysOnTop(note.window.pinned)
+    } catch (err) {
+      console.error('고정 상태를 바꾸지 못했습니다', err)
+    }
+    saver.call()
+  })
   remember = debounce(async () => {
     const scale = await win.scaleFactor()
     const pos = (await win.outerPosition()).toLogical(scale)
@@ -217,6 +235,8 @@ async function boot() {
       width: Math.round(size.width),
       height: Math.round(size.height),
       visible: true,
+      // 이 줄이 없으면 창을 옮길 때마다 핀 설정이 조용히 지워진다
+      pinned: note.window.pinned,
     }
     return persist()
   }, SAVE_DELAY)
