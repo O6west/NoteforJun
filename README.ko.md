@@ -14,6 +14,12 @@
 
 `# `을 치면 그 줄이 제목이 되고, `[ ] `을 치면 체크박스가 됩니다. 글자를 끌면 서식 버튼이 뜹니다. 미리 설정할 것이 없습니다.
 
+> **윈도우 전용입니다.** 맥·리눅스 버전은 없습니다. 전역 단축키(`Ctrl+Alt+N`),
+> 테두리 없는 상단바, 메모를 두는 자리 같은 것들이 윈도우에 맞춰져 있습니다.
+> 맥을 쓰시는데 필요하시면
+> [이슈로 남겨주세요](https://github.com/O6west/NoteforJun/issues). 만들 만한지는
+> 그걸 보고 판단하겠습니다.
+
 ## 받는 법
 
 **[⬇ 윈도우용 내려받기](https://github.com/O6west/NoteforJun/releases/latest/download/NoteforJun-Setup.exe)** · 18 MB · 윈도우 10 또는 11

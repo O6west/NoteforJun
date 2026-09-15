@@ -14,6 +14,12 @@
 
 Type `# ` and the line becomes a heading. Type `[ ] ` and it becomes a checkbox. Select text and the formatting buttons appear. Nothing to set up first.
 
+> **Windows only.** There is no Mac or Linux build — this leans on a few
+> Windows-specific things (the global `Ctrl+Alt+N`, the borderless title bar,
+> where notes are stored). If you're on a Mac and want one,
+> [say so in an issue](https://github.com/O6west/NoteforJun/issues) — that's how
+> I'll know whether it's worth building.
+
 ## Download
 
 **[⬇ Download for Windows](https://github.com/O6west/NoteforJun/releases/latest/download/NoteforJun-Setup.exe)** · 18 MB · Windows 10 or 11
