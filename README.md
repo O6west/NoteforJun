@@ -1,37 +1,37 @@
 *English · [한국어](README.ko.md)*
 
+<img src="src-tauri/icons/128x128@2x.png" alt="" width="84" align="left">
+
 # NoteforJun
 
 **A note app made for Jun**
 
-> Just take notes. Nothing else.
+<br clear="left">
 
-A sticky note that lives on your Windows desktop. Open it and a note is already there — start typing. No save button, no settings screen, no tutorial.
+> Just take notes. Nothing else.
 
 <img src="docs/images/note-en.png" alt="A NoteforJun window. The title bar shows the note title with pin, help, menu and close buttons. The body reads 'Just take notes' as a heading, followed by two checkbox lines, a highlighted phrase, and a bold line." width="520">
 
-The note explains itself. There is nothing else to read first.
-
 ---
 
-## Why another note app?
+## Why I made this
 
-Note apps fail in two directions.
+I'm an ordinary university student.
 
-**Too many features.** Notion and Obsidian are good at organizing large problems. But before you write anything, you have to decide *where* it goes and *what shape* it takes. A decision wedges itself between the thought and writing it down.
+I've installed task managers more times than I can count, and I always stalled at the same spot. Before writing anything down I had to decide **which project it belonged to, when it was due, what to tag it**. A decision wedges itself between having the thought and writing it down. Do that enough times and you stop writing things down at all.
 
-**Too many conveniences.** To-do apps pile on shortcuts and reminders to make things easier. You spend a while learning them, and right around the time you've got them down, you stop opening the app at all.
+So I kept going back to Windows Sticky Notes. It's open, you click, you type. That was the whole appeal. Eventually I was running fairly serious things out of sticky notes.
 
-What survives, for me, is Windows Sticky Notes. Light, plain, and there the instant a thought arrives. Eventually you end up handling even large problems in sticky notes.
+But living in it, a few things nagged.
 
-But Sticky Notes is missing four things.
+- Once five or six notes pile up, you can't tell one from another
+- I'm writing down things to do, and there are no checkboxes
+- No way to highlight the line that matters
+- The text is small and there's no way to make it bigger
 
-1. Once notes pile up, you can't tell one from another
-2. No checkboxes
-3. No highlighter
-4. No way to make the text bigger
+**Wasn't there a notepad that nails the basics and stays light and clean?** I looked for a while, and then figured I'd make it.
 
-**NoteforJun is Sticky Notes with those four filled in, and nothing else added.**
+NoteforJun is Sticky Notes with those four things filled in and **nothing else added**. Every time I was tempted to add one more thing, I asked first: *would this drag it back toward the reason I left task managers in the first place?*
 
 ---
 
@@ -63,7 +63,7 @@ When you want more, hover the `?` on the title bar.
 
 | Type this | Get this |
 |---|---|
-| `[]` + space | ☐ a to-do |
+| `[ ]` + space | ☐ a to-do |
 | `#` + space | a heading |
 | `Ctrl+B` `I` `U` | bold / italic / underline |
 | select text | formatting popup, highlighter included |

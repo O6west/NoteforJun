@@ -25,7 +25,7 @@ import { t } from './i18n.js'
  * 이 목록이 "외워야 할 것"처럼 보이기 시작한다.
  */
 const LINES = [
-  ['[]', t.helpTask, ''],
+  ['[ ]', t.helpTask, ''],
   ['#', t.helpHeading, 'as-h1'],
   ['Ctrl+Alt+N', t.helpNewNote, ''],
 ]

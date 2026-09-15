@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { TASK_INPUT_RULE } from '../editor/rules.js'
 import { createHelp } from './help.js'
 import { t } from './i18n.js'
 
@@ -26,15 +27,14 @@ describe('도움말', () => {
 
   it('세 가지를 알려준다', () => {
     const keys = [...help.element.querySelectorAll('kbd')].map((k) => k.textContent)
-    expect(keys).toEqual(['[]', '#', 'Ctrl+Alt+N'])
+    expect(keys).toEqual(['[ ]', '#', 'Ctrl+Alt+N'])
   })
 
-  it('[] 사이에 공백을 넣지 않는다', () => {
-    // 붙어 보이는 것은 CSS 자간으로 벌린다. 여기에 진짜 공백을 넣으면
-    // "[ ] " 를 따라 친 사람은 체크박스를 못 만든다 — 입력 규칙이 안 맞는다.
+  it('안내에 적힌 대로 쳐도 체크박스가 된다', () => {
+    // 안내와 입력 규칙이 어긋나면 그대로 따라 친 사람이 실패한다.
+    // 여기가 그 둘을 묶어두는 자리다.
     const brackets = help.element.querySelector('kbd').textContent
-    expect(brackets).toBe('[]')
-    expect(brackets).not.toContain(' ')
+    expect(`${brackets} `).toMatch(TASK_INPUT_RULE)
   })
 
   it('이미 아는 단축키는 적지 않는다', () => {
@@ -50,13 +50,13 @@ describe('도움말', () => {
   })
 
   it('실제로 되는 것만 적혀 있다', () => {
-    // rules.js의 TASK_INPUT_RULE은 이제 "[] "만 받는다. 치는 것을 적어두는
+    // rules.js의 TASK_INPUT_RULE은 대괄호 쌍만 받는다. 치는 것을 적어두는
     // 왼쪽 칸에 - 가 남아 있으면 거짓을 알려주는 셈이다.
     //
     // 본문 전체가 아니라 왼쪽 칸만 본다. 결과 쪽에는 하이픈이 얼마든지
     // 들어갈 수 있다 — 영어에서는 "To-do"가 그렇다.
     const keys = [...help.element.querySelectorAll('kbd')].map((k) => k.textContent)
-    expect(keys).toContain('[]')
+    expect(keys).toContain('[ ]')
     expect(keys).not.toContain('-')
     expect(help.element.textContent).toContain(t.helpTask)
   })
