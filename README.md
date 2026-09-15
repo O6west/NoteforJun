@@ -142,3 +142,21 @@ Code comments follow the same rule: not *what* this does, but *why* it is this w
 ## License
 
 [MIT](LICENSE) © 2026 Jun Oh
+
+## Releasing
+
+Update artifacts are signed. Without the key the build stops, and without the
+signature the manifest script stops — a silent no-op update is the one failure
+mode nobody notices.
+
+```bash
+export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.noteforjun/updater.key)"
+npm run tauri build
+npm run release:manifest     # writes latest.json from the .sig
+gh release create vX.Y.Z \
+  src-tauri/target/release/bundle/nsis/*-setup.exe \
+  src-tauri/target/release/bundle/latest.json
+```
+
+`latest.json` must be attached to the release — the app checks
+`releases/latest/download/latest.json` and updates silently do nothing without it.

@@ -140,3 +140,19 @@ cargo test --manifest-path src-tauri/Cargo.toml # 창·저장 테스트
 ## 라이선스
 
 [MIT](LICENSE) © 2026 Jun Oh
+
+## 릴리스 만들기
+
+업데이트 산출물은 서명한다. 키가 없으면 빌드가 멈추고, 서명이 없으면 매니페스트
+스크립트가 멈춘다 — 조용히 업데이트가 안 되는 것이 아무도 눈치 못 채는 유일한
+실패 방식이라, 양쪽에서 막아 둔다.
+
+```bash
+export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.noteforjun/updater.key)"
+npm run tauri build
+npm run release:manifest     # .sig 에서 latest.json 을 만든다
+gh release create vX.Y.Z   src-tauri/target/release/bundle/nsis/*-setup.exe   src-tauri/target/release/bundle/latest.json
+```
+
+`latest.json` 을 릴리스에 꼭 같이 올려야 한다. 앱은
+`releases/latest/download/latest.json` 을 보고, 이게 없으면 업데이트가 조용히 안 된다.

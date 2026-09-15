@@ -23,6 +23,7 @@ import { t } from './lib/i18n.js'
 import { installResizeZones } from './lib/resize.js'
 import { serialize } from './lib/serialize.js'
 import { clampTitle } from './lib/title.js'
+import { watchForUpdate } from './lib/update.js'
 
 const SAVE_DELAY = 500
 
@@ -267,6 +268,11 @@ async function boot() {
   })
   document.addEventListener('click', () => {
     menu.hidden = true
+  })
+
+  watchForUpdate({
+    button: document.getElementById('menu-btn'),
+    item: document.getElementById('update'),
   })
 
   const win = getCurrentWindow()

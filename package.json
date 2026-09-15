@@ -8,10 +8,13 @@
     "build": "vite build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "release:manifest": "node scripts/make-release.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.11.0",
     "@tiptap/core": "^2.11.0",
     "@tiptap/extension-bold": "^2.11.0",
     "@tiptap/extension-document": "^2.11.0",

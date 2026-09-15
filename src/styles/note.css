@@ -176,6 +176,25 @@
   cursor: pointer;
 }
 .menu-item:hover { background: rgba(0, 0, 0, 0.06); }
+.menu-item[hidden] { display: none; }
+
+/*
+ * 업데이트가 있다는 표시. ⋯ 버튼 귀퉁이에 점 하나만 찍는다.
+ * 팝업으로 물어보지 않는 이유는, 이 앱이 알림과 물음을 없앤 앱이기 때문이다.
+ * 점은 보고 싶을 때 보이고, 무시해도 아무 일도 일어나지 않는다.
+ */
+#menu-btn.has-update::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.9;
+}
+#update { font-weight: 600; }
 
 /*
  * 켜고 끄는 항목에는 오른쪽에 ✓ 를 붙인다.

@@ -26,6 +26,8 @@ const ko = {
   // ⋯ 메뉴
   openList: '모든 메모 보기',
   autostart: '윈도우 켤 때 실행',
+  updateTo: (version) => `${version} 버전으로 업데이트`,
+  updating: '내려받는 중…',
 
   // 본문
   bodyPlaceholder: '여기에 메모…',
@@ -79,6 +81,8 @@ const en = {
   // ⋯ 메뉴
   openList: 'All notes',
   autostart: 'Start with Windows',
+  updateTo: (version) => `Update to ${version}`,
+  updating: 'Downloading…',
 
   // 본문
   bodyPlaceholder: 'Write here…',

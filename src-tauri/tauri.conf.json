@@ -11,7 +11,9 @@
   },
   "app": {
     "windows": [],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
@@ -22,6 +24,18 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/O6west/NoteforJun/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk2RkNDNjk2MTAwM0U2RDkKUldUWjVnTVFsc2I4bG1TWUxkSWREUi9JSXBSbldNdHRMOHlzK2g2Z1YrVFZCOGx5M2RJdmRUTU0K",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
