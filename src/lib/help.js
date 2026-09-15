@@ -14,15 +14,18 @@
 /**
  * 왼쪽에 치는 것, 오른쪽에 그 결과.
  *
- * 결과를 설명하지 않고 그 모양 그대로 보여준다 — "굵게"를 굵게 써두면
+ * 결과를 설명하지 않고 그 모양 그대로 보여준다 — "제목"을 크게 써두면
  * 무엇이 되는지 읽지 않아도 보인다. 설명을 읽게 만들면 외워야 할 목록이 되고,
  * 보여주면 한번 쳐보게 된다.
+ *
+ * Ctrl+B·I·U는 적지 않는다. 수십 년간 모든 프로그램에서 똑같이 동작해온
+ * 공용 지식이라 이미 알고 온다. 아는 것을 적어두면 안내가 길어지기만 하고,
+ * 이 목록이 "외워야 할 것"처럼 보이기 시작한다.
  */
 const LINES = [
-  ['[]', [['☐ 할 일', '']]],
-  ['#', [['제목', 'as-h1']]],
-  ['Ctrl+B I U', [['굵게', 'as-bold'], ['기울임', 'as-italic'], ['밑줄', 'as-underline']]],
-  ['Ctrl+Alt+N', [['새 메모', '']]],
+  ['[]', '☐ 할 일', ''],
+  ['#', '제목', 'as-h1'],
+  ['Ctrl+Alt+N', '새 메모', ''],
 ]
 
 export function createHelp({ button, container, menu = null }) {
@@ -33,7 +36,7 @@ export function createHelp({ button, container, menu = null }) {
 
   // 치는 것 / 화살표 / 결과 세 칸으로 쌓는다. 세 칸 다 내용만큼만 차지하므로
   // 창을 키워도 팝업이 같이 늘어나지 않는다.
-  for (const [key, pieces] of LINES) {
+  for (const [key, what, style] of LINES) {
     const k = document.createElement('kbd')
     k.textContent = key
 
@@ -44,13 +47,8 @@ export function createHelp({ button, container, menu = null }) {
     arrow.setAttribute('aria-hidden', 'true')
 
     const result = document.createElement('span')
-    result.className = 'result'
-    for (const [text, style] of pieces) {
-      const piece = document.createElement('span')
-      piece.textContent = text
-      if (style) piece.className = style
-      result.appendChild(piece)
-    }
+    result.textContent = what
+    if (style) result.className = style
 
     element.append(k, arrow, result)
   }

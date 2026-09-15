@@ -247,13 +247,9 @@
 #help[hidden] { display: none; }
 #help kbd { font-family: inherit; opacity: 0.72; }
 #help .arrow { opacity: 0.38; }
-#help .result { display: flex; gap: 9px; }
 
-/* 결과는 설명이 아니라 실제 모양이다. 굵게는 굵게, 기울임은 기울여 보여준다. */
+/* 결과는 설명이 아니라 실제 모양이다. "제목"은 제목처럼 크게 보여준다. */
 #help .as-h1 { font-size: 15px; font-weight: 700; }
-#help .as-bold { font-weight: 700; }
-#help .as-italic { font-style: italic; }
-#help .as-underline { text-decoration: underline; }
 
 /*
  * ? 는 + × ⋯ 보다 획이 잘아서, .bar-btn의 20px로 두면 혼자 커 보인다.

@@ -23,19 +23,21 @@ describe('도움말', () => {
     expect(help.element.hidden).toBe(true)
   })
 
-  it('네 가지를 알려준다', () => {
+  it('세 가지를 알려준다', () => {
     const keys = [...help.element.querySelectorAll('kbd')].map((k) => k.textContent)
-    expect(keys).toEqual(['[]', '#', 'Ctrl+B I U', 'Ctrl+Alt+N'])
+    expect(keys).toEqual(['[]', '#', 'Ctrl+Alt+N'])
+  })
+
+  it('이미 아는 단축키는 적지 않는다', () => {
+    // Ctrl+B·I·U는 모든 프로그램에서 똑같이 동작하는 공용 지식이다.
+    // 아는 것을 적어두면 안내가 길어지고 "외워야 할 목록"처럼 보인다.
+    expect(help.element.textContent).not.toContain('Ctrl+B')
   })
 
   it('결과를 설명하지 않고 그 모양으로 보여준다', () => {
-    // "굵게"를 굵게 써두면 무엇이 되는지 읽지 않아도 보인다.
+    // "제목"을 크게 써두면 무엇이 되는지 읽지 않아도 보인다.
     // 이 표시가 빠지면 안내는 다시 외워야 할 목록이 된다.
-    const shape = (cls) => help.element.querySelector(`.${cls}`)?.textContent
-    expect(shape('as-h1')).toBe('제목')
-    expect(shape('as-bold')).toBe('굵게')
-    expect(shape('as-italic')).toBe('기울임')
-    expect(shape('as-underline')).toBe('밑줄')
+    expect(help.element.querySelector('.as-h1')?.textContent).toBe('제목')
   })
 
   it('실제로 되는 것만 적혀 있다', () => {
