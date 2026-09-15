@@ -10,7 +10,9 @@
 
 <br clear="left">
 
-<img src="docs/images/note-en.png" alt="A NoteforJun window. The title bar shows the note title with pin, help, menu and close buttons. The body reads 'Just take notes' as a heading, followed by two checkbox lines, a highlighted phrase, and a bold line." width="520">
+<img src="docs/images/demo.gif" alt="Typing in a NoteforJun window: '# ' turns the line into a heading, '[ ] ' turns into a checkbox, clicking a checkbox strikes the line through, and selecting text brings up a formatting popup used to highlight it." width="460">
+
+Type `# ` and the line becomes a heading. Type `[ ] ` and it becomes a checkbox. Select text and the formatting buttons appear. Nothing to set up first.
 
 
 ## Why I made this
