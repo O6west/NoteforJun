@@ -31,7 +31,11 @@ But living in it, a few things nagged.
 
 **Wasn't there a notepad that nails the basics and stays light and clean?** I looked for a while, and then figured I'd make it.
 
-NoteforJun is Sticky Notes with those four things filled in and **nothing else added**. Every time I was tempted to add one more thing, I asked first: *would this drag it back toward the reason I left task managers in the first place?*
+So I built one for myself. That's all the name is — I'm Jun.
+
+Building it for exactly one person is what kept it clean. When you don't know who'll use a thing, you hedge and put everything in. When the only user is you, there's no reason to add a feature you won't use. Every time I was tempted to add one more, I asked first: *would this drag it back toward the reason I left task managers in the first place?*
+
+What came out is Sticky Notes with those four things filled in and **nothing else added**. I made it for me — but if you got stuck in the same place I did, it'll probably fit you too.
 
 ---
 

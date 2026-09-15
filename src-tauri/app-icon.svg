@@ -29,29 +29,31 @@
     빠져나온 맨 깃대.
   -->
   <g transform="translate(528 604) rotate(-38) scale(1.12)">
-    <!-- 오른쪽 깃 -->
-    <path d="M0 -236 C 76 -152, 88 -18, 40 112 C 24 158, 8 192, 0 208 Z" fill="#3D2F10"/>
-    <!-- 왼쪽 깃. 살짝 밝게 해서 두 갈래로 갈린 것이 보이게 한다. -->
-    <path d="M0 -236 C -76 -152, -88 -18, -40 112 C -24 158, -8 192, 0 208 Z" fill="#5C5027"/>
-
     <!--
-      깃가지와 깃대를 종이색으로 판다. 어두운 깃 위에 더 어두운 선을 올리면
-      묻혀서 안 보이고, 그러면 가운데 선이 없는 잎이 된다. 파낸 자국이라야
-      깃털로 읽힌다.
+      깃을 통째로 닫힌 도형 하나로 그린다. 좌우를 따로 그리면 테두리가 가운데를
+      두 번 지나 깃대와 겹쳐 지저분해진다.
+
+      흰 깃을 아이보리 종이 위에 올리므로 색만으로는 경계가 안 보인다.
+      테두리가 그 일을 한다 — 작은 크기에서 형태를 버티게 하는 것도 테두리다.
     -->
-    <g stroke="#FBF8F2" stroke-linecap="round" fill="none">
-      <path d="M0 -218 L0 198" stroke-width="13"/>
-      <g stroke-width="8" opacity="0.9">
-        <path d="M0 -122 L58 -166"/>
-        <path d="M0 -122 L-58 -166"/>
-        <path d="M0 -26 L68 -78"/>
-        <path d="M0 -26 L-68 -78"/>
-        <path d="M0 70 L52 14"/>
-        <path d="M0 70 L-52 14"/>
-      </g>
+    <path d="M0 -236
+             C 76 -152, 88 -18, 40 112
+             C 24 158, 8 192, 0 208
+             C -8 192, -24 158, -40 112
+             C -88 -18, -76 -152, 0 -236 Z"
+          fill="#FFFFFF" stroke="#3D2F10" stroke-width="21" stroke-linejoin="round"/>
+
+    <!-- 깃가지. 흰 깃 위에 올리므로 진한 색으로 긋는다. -->
+    <g stroke="#3D2F10" stroke-linecap="round" fill="none" stroke-width="13">
+      <path d="M0 -122 L56 -164"/>
+      <path d="M0 -122 L-56 -164"/>
+      <path d="M0 -26 L66 -76"/>
+      <path d="M0 -26 L-66 -76"/>
+      <path d="M0 70 L50 16"/>
+      <path d="M0 70 L-50 16"/>
     </g>
 
-    <!-- 맨 깃대. 깃 아래로 길게 빠져나와 펜촉처럼 보이게 한다. -->
-    <path d="M0 192 L0 276" stroke="#3D2F10" stroke-width="15" stroke-linecap="round"/>
+    <!-- 깃대. 가운데를 지나 아래로 길게 빠져나와 펜촉이 된다. -->
+    <path d="M0 -214 L0 276" stroke="#3D2F10" stroke-width="17" stroke-linecap="round"/>
   </g>
 </svg>
