@@ -1,3 +1,5 @@
+import { t } from './i18n.js'
+
 /**
  * 상단바 ? 도움말.
  *
@@ -23,9 +25,9 @@
  * 이 목록이 "외워야 할 것"처럼 보이기 시작한다.
  */
 const LINES = [
-  ['[]', '☐ 할 일', ''],
-  ['#', '제목', 'as-h1'],
-  ['Ctrl+Alt+N', '새 메모', ''],
+  ['[]', t.helpTask, ''],
+  ['#', t.helpHeading, 'as-h1'],
+  ['Ctrl+Alt+N', t.helpNewNote, ''],
 ]
 
 export function createHelp({ button, container, menu = null }) {

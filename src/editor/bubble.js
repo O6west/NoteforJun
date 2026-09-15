@@ -3,11 +3,13 @@
  * 형광펜에 단축키가 없으므로 이 팝업이 형광펜의 유일한 입구다.
  * 익숙한 B I U 옆에 두어 따로 알려주지 않아도 눈에 띄게 한다.
  */
+import { t } from '../lib/i18n.js'
+
 const BUTTONS = [
-  { mark: 'bold', label: 'B', command: 'toggleBold', title: '굵게 (Ctrl+B)' },
-  { mark: 'italic', label: 'I', command: 'toggleItalic', title: '기울임 (Ctrl+I)' },
-  { mark: 'underline', label: 'U', command: 'toggleUnderline', title: '밑줄 (Ctrl+U)' },
-  { mark: 'highlight', label: '✏', command: 'toggleHighlight', title: '형광펜' },
+  { mark: 'bold', label: 'B', command: 'toggleBold', title: t.bold },
+  { mark: 'italic', label: 'I', command: 'toggleItalic', title: t.italic },
+  { mark: 'underline', label: 'U', command: 'toggleUnderline', title: t.underline },
+  { mark: 'highlight', label: '✏', command: 'toggleHighlight', title: t.highlight },
 ]
 
 export function createBubble({ editor, container }) {
@@ -15,7 +17,7 @@ export function createBubble({ editor, container }) {
   element.id = 'bubble'
   element.hidden = true
   element.setAttribute('role', 'toolbar')
-  element.setAttribute('aria-label', '서식')
+  element.setAttribute('aria-label', t.formatToolbar)
 
   for (const b of BUTTONS) {
     const btn = document.createElement('button')

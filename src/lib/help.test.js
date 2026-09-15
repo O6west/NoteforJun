@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHelp } from './help.js'
+import { t } from './i18n.js'
 
 let container
 let button
@@ -45,16 +46,19 @@ describe('도움말', () => {
   it('결과를 설명하지 않고 그 모양으로 보여준다', () => {
     // "제목"을 크게 써두면 무엇이 되는지 읽지 않아도 보인다.
     // 이 표시가 빠지면 안내는 다시 외워야 할 목록이 된다.
-    expect(help.element.querySelector('.as-h1')?.textContent).toBe('제목')
+    expect(help.element.querySelector('.as-h1')?.textContent).toBe(t.helpHeading)
   })
 
   it('실제로 되는 것만 적혀 있다', () => {
-    // rules.js의 TASK_INPUT_RULE은 이제 "[] "만 받는다.
-    // 안내에 - 가 남아 있으면 거짓을 알려주는 셈이다.
-    const text = help.element.textContent
-    expect(text).toContain('[]')
-    expect(text).toContain('할 일')
-    expect(text).not.toContain('-')
+    // rules.js의 TASK_INPUT_RULE은 이제 "[] "만 받는다. 치는 것을 적어두는
+    // 왼쪽 칸에 - 가 남아 있으면 거짓을 알려주는 셈이다.
+    //
+    // 본문 전체가 아니라 왼쪽 칸만 본다. 결과 쪽에는 하이픈이 얼마든지
+    // 들어갈 수 있다 — 영어에서는 "To-do"가 그렇다.
+    const keys = [...help.element.querySelectorAll('kbd')].map((k) => k.textContent)
+    expect(keys).toContain('[]')
+    expect(keys).not.toContain('-')
+    expect(help.element.textContent).toContain(t.helpTask)
   })
 
   it('커서를 올리면 나타나고 치우면 사라진다', () => {

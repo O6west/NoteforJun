@@ -12,6 +12,7 @@ import TaskList from '@tiptap/extension-task-list'
 import Text from '@tiptap/extension-text'
 import Underline from '@tiptap/extension-underline'
 
+import { t } from '../lib/i18n.js'
 import { TASK_INPUT_RULE } from './rules.js'
 
 /**
@@ -66,6 +67,6 @@ export function buildExtensions() {
     Underline,
     Highlight.configure({ multicolor: false }),
     History,
-    Placeholder.configure({ placeholder: '여기에 메모…' }),
+    Placeholder.configure({ placeholder: t.bodyPlaceholder }),
   ]
 }

@@ -19,6 +19,7 @@ import {
 import { COLORS, DEFAULT_COLOR, colorOf } from './lib/colors.js'
 import { debounce } from './lib/debounce.js'
 import { createHelp } from './lib/help.js'
+import { t } from './lib/i18n.js'
 import { installResizeZones } from './lib/resize.js'
 import { serialize } from './lib/serialize.js'
 import { clampTitle } from './lib/title.js'
@@ -33,6 +34,26 @@ const titleInput = document.getElementById('title')
 const menu = document.getElementById('menu')
 const pinBtn = document.getElementById('pin-btn')
 const swatches = document.getElementById('swatches')
+
+/**
+ * 화면에 박아둘 수 없는 문구를 채운다.
+ *
+ * HTML에 직접 적어두면 언어가 둘이 되는 순간 문구가 두 곳으로 흩어지고,
+ * 한쪽만 고쳐서 어긋난다. 사전 한 곳만 보면 되도록 여기서 넣는다.
+ */
+function applyText() {
+  document.getElementById('grabber').title = t.dragHandle
+  document.getElementById('new-note').title = t.newNote
+  titleInput.placeholder = t.titlePlaceholder
+  const pin = document.getElementById('pin-btn')
+  pin.setAttribute('aria-label', t.pin)
+  document.getElementById('help-btn').setAttribute('aria-label', t.help)
+  document.getElementById('menu-btn').title = t.menu
+  document.getElementById('close').title = t.close
+  document.getElementById('open-list').textContent = t.openList
+  document.getElementById('autostart').textContent = t.autostart
+}
+applyText()
 
 let note = null
 let editor = null
@@ -76,7 +97,7 @@ function showSaveError(err) {
   lastSaveFailed = true
   clearTimeout(savedTimer)
   savedMark.textContent = '⚠'
-  savedMark.title = '저장하지 못했습니다. 창을 닫지 말고 글을 복사해 두세요.'
+  savedMark.title = t.saveFailed
   savedMark.classList.add('show', 'warn')
 }
 
@@ -90,10 +111,10 @@ function showSaveError(err) {
 function showLoadError(err) {
   console.error('메모를 불러오지 못했습니다', err)
   const editorEl = document.getElementById('editor')
-  editorEl.textContent = '이 메모를 불러오지 못했습니다. 파일이 손상되었을 수 있습니다.'
+  editorEl.textContent = t.loadFailedBody
   editorEl.style.opacity = '0.55'
   savedMark.textContent = '⚠'
-  savedMark.title = '메모를 불러오지 못했습니다.'
+  savedMark.title = t.loadFailed
   savedMark.classList.add('show', 'warn')
 }
 
@@ -139,8 +160,7 @@ document.getElementById('close').addEventListener('click', async () => {
   // 창 테두리가 없어 × 말고는 닫을 방법이 없으므로 영영 가둘 수는 없다.
   if (lastSaveFailed && !closeHeld) {
     closeHeld = true
-    savedMark.title =
-      '저장하지 못했습니다. 글을 복사해 두세요. ×를 한 번 더 누르면 저장하지 않고 닫습니다.'
+    savedMark.title = t.saveFailedClosing
     return
   }
 
@@ -150,7 +170,7 @@ document.getElementById('close').addEventListener('click', async () => {
 /** 핀 상태를 버튼에 비춘다. 창에 실제로 거는 것은 누를 때와 boot에서 한다. */
 function showPinned(pinned) {
   pinBtn.setAttribute('aria-pressed', String(pinned))
-  pinBtn.title = pinned ? '고정 해제' : '항상 위에 고정'
+  pinBtn.title = pinned ? t.pinOn : t.pinOff
 }
 
 function applyColor(key) {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { typeText } from '../../test/helpers.js'
+import { t } from '../lib/i18n.js'
 import { createBubble } from './bubble.js'
 import { createEditor } from './editor.js'
 
@@ -112,7 +113,7 @@ describe('키보드로 쓰기', () => {
     const names = [...bubble.element.querySelectorAll('button')].map((b) =>
       b.getAttribute('aria-label'),
     )
-    expect(names).toEqual(['굵게 (Ctrl+B)', '기울임 (Ctrl+I)', '밑줄 (Ctrl+U)', '형광펜'])
+    expect(names).toEqual([t.bold, t.italic, t.underline, t.highlight])
   })
 
   it('팝업 버튼으로 초점이 옮겨가는 중에는 사라지지 않는다', async () => {

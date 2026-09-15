@@ -192,7 +192,7 @@ pub fn open_list(app: &AppHandle) -> tauri::Result<()> {
         return Ok(());
     }
     WebviewWindowBuilder::new(app, LIST_LABEL, WebviewUrl::App("list.html".into()))
-        .title("모든 메모")
+        .title(crate::text::list_window_title())
         .inner_size(360.0, 520.0)
         .min_inner_size(360.0, 240.0)
         .decorations(false)
@@ -211,22 +211,6 @@ pub fn open_list(app: &AppHandle) -> tauri::Result<()> {
         .build()?;
     Ok(())
 }
-
-/// 처음 켰을 때 내미는 메모의 제목과 본문.
-///
-/// 이 앱에는 설명서도 첫 실행 안내 화면도 없다. 그 자리를 첫 메모가 대신한다 —
-/// 읽다 보면 제목·큰 글씨·체크박스·형광펜을 이미 다 본 셈이 된다.
-/// 안내가 메모 안에 들어 있으므로, 다 읽었으면 지우면 그만이다.
-const WELCOME_TITLE: &str = "제목 입력도 가능";
-const WELCOME_BODY: &str = concat!(
-    "<h1>내가 쓸 때 편하라고 만든 앱. NoteforJun</h1>",
-    "<ul data-type=\"taskList\"><li data-checked=\"false\"><p>이런 것도 됩니다</p></li></ul>",
-    "<p><mark>이런 것도 가능하구요!</mark></p>",
-    "<p></p>",
-    "<p><strong>편하게 메모하세요. 다른 건 없습니다.</strong></p>",
-    "<p></p>",
-    "<p><strong>Made by Jun Oh</strong></p>",
-);
 
 /// 앱을 켤 때 호출한다.
 ///
@@ -247,8 +231,8 @@ pub fn restore_all(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
 
 fn open_welcome(app: &AppHandle, notes_dir: &PathBuf) -> tauri::Result<()> {
     let mut note = crate::commands::new_note();
-    note.title = WELCOME_TITLE.to_string();
-    note.content = WELCOME_BODY.to_string();
+    note.title = crate::text::welcome_title().to_string();
+    note.content = crate::text::welcome_body().to_string();
     let screen = primary_screen_logical(app);
     let (x, y) = next_position(None, screen, (note.window.width, note.window.height));
     note.window.x = x;
@@ -466,33 +450,6 @@ mod tests {
 
         n.content = "<p>적어둔 것</p>".to_string();
         assert!(!is_body_empty(&n));
-    }
-
-    #[test]
-    fn welcome_note_shows_what_the_app_can_do() {
-        // 설명서도 첫 실행 안내 화면도 없으므로 이 메모가 그 자리를 대신한다.
-        // 여기서 뭔가 빠지면 사용자는 그 기능이 있는 줄도 모르고 지나간다.
-        assert!(WELCOME_BODY.contains("<h1>"), "큰 글씨");
-        assert!(WELCOME_BODY.contains("taskList"), "체크박스");
-        assert!(WELCOME_BODY.contains("<mark>"), "형광펜");
-        assert!(!WELCOME_TITLE.trim().is_empty(), "제목칸도 쓸 수 있다는 것을 보여준다");
-    }
-
-    #[test]
-    fn welcome_note_survives_a_restart() {
-        // 본문이 비면 되살리는 대상에서 빠진다. 안내를 다 읽기 전에 컴퓨터를
-        // 껐다 켰다고 사라지면 곤란하다.
-        let note = crate::note::Note {
-            id: "welcome".to_string(),
-            title: WELCOME_TITLE.to_string(),
-            content: WELCOME_BODY.to_string(),
-            color: "yellow".to_string(),
-            window: crate::note::WindowState::default(),
-            created_at: "2026-09-15T00:00:00Z".to_string(),
-            updated_at: "2026-09-15T00:00:00Z".to_string(),
-        };
-        assert!(!is_body_empty(&note));
-        assert!(!is_blank(&note));
     }
 
     #[test]

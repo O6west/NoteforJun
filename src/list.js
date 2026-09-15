@@ -7,6 +7,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 
 import { createNote, deleteNote, listNotes, openNoteWindow } from './lib/api.js'
 import { colorOf } from './lib/colors.js'
+import { t } from './lib/i18n.js'
 import { firstLine, previewText } from './lib/preview.js'
 import { installResizeZones } from './lib/resize.js'
 import { filterNotes } from './lib/search.js'
@@ -17,6 +18,12 @@ const cards = document.getElementById('cards')
 const empty = document.getElementById('empty')
 const search = document.getElementById('search')
 const errorBox = document.getElementById('error')
+
+// 문구는 사전 한 곳에서만 온다. HTML에 적어두면 언어가 둘이 되는 순간 어긋난다.
+document.title = t.listWindowTitle
+search.placeholder = t.search
+document.getElementById('new-note').title = t.newNote
+document.getElementById('close').title = t.close
 
 let all = []
 
@@ -36,7 +43,7 @@ function render() {
   cards.textContent = ''
   // '메모가 없다'와 '검색에 안 걸린다'는 다른 말이다. 같은 문구를 쓰면
   // 검색하다가 메모가 전부 사라진 줄 안다.
-  empty.textContent = search.value.trim() ? '찾는 메모가 없습니다.' : '메모가 없습니다.'
+  empty.textContent = search.value.trim() ? t.noMatch : t.noNotes
   empty.hidden = shown.length > 0
 
   for (const n of shown) {
@@ -53,13 +60,13 @@ function render() {
     const title = document.createElement('div')
     const hasTitle = (n.title ?? '').trim().length > 0
     title.className = hasTitle ? 'card-title' : 'card-title untitled'
-    title.textContent = hasTitle ? n.title : firstLine(n.text) || '(빈 메모)'
+    title.textContent = hasTitle ? n.title : firstLine(n.text) || t.emptyNote
 
     const preview = document.createElement('div')
     preview.className = 'card-preview'
     preview.textContent = previewText(n.text)
 
-    const label = hasTitle ? n.title : '제목 없는 메모'
+    const label = hasTitle ? n.title : t.untitledNote
 
     // 마우스를 올렸을 때만 보이는 삭제 버튼.
     // 우클릭만 두면 지울 수 있다는 사실 자체를 알 방법이 없고, 이 앱에서는
@@ -69,25 +76,25 @@ function render() {
     remove.type = 'button'
     remove.className = 'card-delete'
     remove.textContent = '×'
-    remove.title = `"${label}" 삭제`
-    remove.setAttribute('aria-label', `"${label}" 삭제`)
+    remove.title = t.deleteNote(label)
+    remove.setAttribute('aria-label', t.deleteNote(label))
 
     body.append(title, preview)
     card.append(stripe, body, remove)
 
     async function confirmDelete() {
-      if (!confirm(`"${label}" 메모를 삭제할까요?\n되돌릴 수 없습니다.`)) return
+      if (!confirm(t.deleteConfirm(label))) return
       try {
         await deleteNote(n.id)
       } catch (err) {
-        showError('메모를 지우지 못했습니다.', err)
+        showError(t.deleteFailed, err)
         return
       }
       await refresh()
     }
 
     card.addEventListener('click', () =>
-      openNoteWindow(n.id).catch((err) => showError('메모를 열지 못했습니다.', err)),
+      openNoteWindow(n.id).catch((err) => showError(t.openFailed, err)),
     )
     remove.addEventListener('click', (e) => {
       // 카드 클릭이 같이 일어나면 지우려다 메모가 열린다
@@ -108,7 +115,7 @@ async function refresh() {
     all = await listNotes()
     clearError()
   } catch (err) {
-    showError('메모 목록을 불러오지 못했습니다.', err)
+    showError(t.listFailed, err)
     return
   }
   render()
@@ -119,7 +126,7 @@ document.getElementById('new-note').addEventListener('click', async () => {
   try {
     await createNote()
   } catch (err) {
-    showError('새 메모를 만들지 못했습니다.', err)
+    showError(t.createFailed, err)
     return
   }
   await refresh()

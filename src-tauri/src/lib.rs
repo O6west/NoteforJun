@@ -2,6 +2,7 @@ pub mod commands;
 pub mod html;
 pub mod note;
 pub mod storage;
+pub mod text;
 pub mod windows;
 
 use tauri::Manager;
