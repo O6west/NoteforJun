@@ -1,132 +1,146 @@
+*English · [한국어](README.ko.md)*
+
 # NoteforJun
 
-**Jun을 위한 노트앱**
+**A note app made for Jun**
 
-> 편하게 메모하세요, 다른 건 없습니다.
+> Just take notes. Nothing else.
 
-윈도우 바탕화면에 붙는 스티키 메모입니다. 켜면 메모가 떠 있고, 거기에 적으면 됩니다. 저장 버튼도, 설정 화면도, 튜토리얼도 없습니다.
+A sticky note that lives on your Windows desktop. Open it and a note is already there — start typing. No save button, no settings screen, no tutorial.
 
-<img src="docs/images/note.png" alt="NoteforJun 메모 창. 상단바에 제목 'NoteforJun'과 핀·도움말·메뉴·닫기 버튼이 있고, 본문에 큰 글씨로 '편하게 메모하세요', 체크박스 두 줄, 형광펜과 굵게가 적용된 줄이 적혀 있다." width="520">
+<img src="docs/images/note-en.png" alt="A NoteforJun window. The title bar shows the note title with pin, help, menu and close buttons. The body reads 'Just take notes' as a heading, followed by two checkbox lines, a highlighted phrase, and a bold line." width="520">
 
-메모가 스스로를 설명합니다. 따로 읽을 설명서가 없습니다.
-
----
-
-## 왜 또 메모 앱인가
-
-메모 앱은 두 방향으로 실패합니다.
-
-**기능이 너무 많은 쪽.** 노션이나 옵시디언은 큰 문제를 정리하기엔 좋습니다. 그런데 무언가를 적기 전에 "이걸 어디에, 어떤 형식으로 적지"를 먼저 정해야 합니다. 생각이 떠오른 순간과 그것을 적는 순간 사이에 결정이 끼어듭니다.
-
-**편의 기능이 너무 많은 쪽.** 투두 앱들은 단축키와 알림을 편하라고 넣습니다. 그런데 그걸 익히다가, 익숙해질 무렵 앱 자체를 안 쓰게 됩니다.
-
-결국 살아남는 건 윈도우 기본 스티키 노트입니다. 가볍고, 단순하고, 떠오른 순간 바로 적을 수 있습니다. 나중엔 규모가 큰 문제조차 스티키 노트로 처리하게 됩니다.
-
-다만 스티키 노트에는 네 가지가 없습니다.
-
-1. 메모가 쌓이면 뭐가 뭔지 구분이 안 됩니다
-2. 체크박스가 없습니다
-3. 형광펜이 없습니다
-4. 글자 크기를 키울 수 없습니다
-
-**NoteforJun은 스티키 노트에 이 네 가지만 채우고, 그 외에는 아무것도 더하지 않은 앱입니다.**
+The note explains itself. There is nothing else to read first.
 
 ---
 
-## 세 가지 원칙
+## Why another note app?
 
-### 1. 자유도를 없애는 것이 기능이다
+Note apps fail in two directions.
 
-스티키 노트가 살아남은 이유는 기능이 적어서가 아니라 **결정할 것이 없어서**입니다. 폰트, 글자 크기, 정렬, 여백을 미리 정해서 박아버리는 것 자체가 이 앱의 핵심 기능입니다.
+**Too many features.** Notion and Obsidian are good at organizing large problems. But before you write anything, you have to decide *where* it goes and *what shape* it takes. A decision wedges itself between the thought and writing it down.
 
-**설정 화면이 없습니다.** 고를 수 있는 건 메모 색 6가지, 창 크기·위치, 메모를 앞에 고정할지, 윈도우 켤 때 실행할지 — 이게 전부입니다. 넷 다 `⋯` 메뉴나 상단바 버튼에 있고, 따로 들어가는 설정 화면은 없습니다.
+**Too many conveniences.** To-do apps pile on shortcuts and reminders to make things easier. You spend a while learning them, and right around the time you've got them down, you stop opening the app at all.
 
-### 2. 이 앱에서만 통하는 걸 배워야 하면, 넣지 않는다
+What survives, for me, is Windows Sticky Notes. Light, plain, and there the instant a thought arrives. Eventually you end up handling even large problems in sticky notes.
 
-`Ctrl+B`는 수십 년간 모든 프로그램에서 똑같이 동작해온 공용 지식입니다. 이미 알고 오시니 배울 게 없습니다. 반대로 이 앱만의 고유한 단축키나 문법은 배우는 비용이 생기므로 넣지 않습니다.
+But Sticky Notes is missing four things.
 
-### 3. 발견되게 하되, 강요하지 않는다
+1. Once notes pile up, you can't tell one from another
+2. No checkboxes
+3. No highlighter
+4. No way to make the text bigger
 
-`#`을 치면 글자가 커집니다. 모르고 안 써도 손해가 없습니다. 글자를 끌면 서식 버튼이 뜹니다. 안 써도 메모는 그대로 써집니다. 부가 기능은 전부 **몰라도 쓸 수 있고, 우연히 발견하면 이득인** 구조입니다.
+**NoteforJun is Sticky Notes with those four filled in, and nothing else added.**
 
 ---
 
-## 쓰는 법
+## Three principles
 
-적으면 됩니다. 이게 전부입니다.
+### 1. Removing choices *is* the feature
 
-처음 켜면 안내 메모가 한 장 떠 있습니다. 그 메모 자체가 설명서라서, 읽다 보면 무엇이 되는지 이미 다 본 셈이 됩니다. 다 봤으면 지우면 되고, 다시 나타나지 않습니다.
+Sticky Notes survived not because it has few features, but because there is **nothing to decide**. The font, the text size, the spacing, the alignment — nailing those down in advance is the core feature of this app, not a limitation of it.
 
-더 하고 싶어지면, 상단바 `?`에 커서를 올려보세요.
+**There is no settings screen.** What you can choose: one of six note colors, the window size and position, whether a note stays on top, and whether the app starts with Windows. That's the whole list. All four live in the `⋯` menu or on the title bar. There is no settings page to go into.
 
-| 치는 것 | 되는 것 |
+### 2. If you'd have to learn something that only works here, it doesn't go in
+
+`Ctrl+B` has meant the same thing in every program for decades. You already know it, so there is nothing to learn. A shortcut or syntax invented for this app alone would cost you something to learn, so it stays out.
+
+### 3. Discoverable, never required
+
+Type `#` and the text gets bigger. Never knowing that costs you nothing. Select text and formatting buttons appear. Never using them costs you nothing either. Every extra is built so that you **can use the app without knowing it, and come out ahead if you stumble onto it**.
+
+---
+
+## How to use it
+
+Write. That's the whole thing.
+
+The first time you open the app, one note is already waiting. That note *is* the manual — by the time you've read it, you've seen everything the app does. Delete it when you're done and it won't come back.
+
+When you want more, hover the `?` on the title bar.
+
+| Type this | Get this |
 |---|---|
-| `[]` + 스페이스 | ☐ 할 일 |
-| `#` + 스페이스 | 제목 (큰 글씨) |
-| `Ctrl+B` `I` `U` | 굵게 / 기울임 / 밑줄 |
-| 글자 끌기 | 형광펜 포함 서식 팝업 |
-| `Ctrl+Alt+N` | 새 메모 (어느 프로그램에 있든) |
+| `[]` + space | ☐ a to-do |
+| `#` + space | a heading |
+| `Ctrl+B` `I` `U` | bold / italic / underline |
+| select text | formatting popup, highlighter included |
+| `Ctrl+Alt+N` | a new note, from anywhere |
 
-그 외에 알아두면 좋은 것들입니다.
+A few other things worth knowing.
 
-- **자동 저장** — 저장 버튼이 없습니다. 글을 쓰면 알아서 저장되고, 끝나면 작은 `✓`가 잠깐 떴다 사라집니다. 색이나 위치를 바꾼 것도 저장되지만 그땐 `✓`가 뜨지 않습니다. 눈으로 이미 보이니까요.
-- **📌 고정** — 핀을 꽂으면 그 메모만 다른 창 위에 남습니다. 붙잡아 두고 싶은 것에만 꽂으면 되고, 메모마다 따로 기억합니다.
-- **`×`는 치우기지 삭제가 아닙니다** — 닫은 메모는 목록에 남아 있습니다. 지우려면 목록 창에서 지워야 합니다. 삭제 경로는 하나뿐입니다.
-- **컴퓨터를 껐다 켜면** 마지막에 쓰던 메모가 최대 5개까지 다시 떠 있습니다. 내용이 빈 메모는 빠집니다.
-- **메모가 쌓이면** `⋯ → 모든 메모 보기`에서 색 띠와 미리보기로 훑고, 검색으로 찾습니다.
+- **Autosave** — there is no save button. What you write is saved on its own, and a small `✓` blinks when it lands. Color and position changes are saved too, but quietly — you can already see those happened.
+- **📌 Pin** — pinning keeps that one note above other windows. Pin only what you want to keep in sight; each note remembers its own setting.
+- **`×` puts a note away, it does not delete it** — closed notes stay in the list. Deleting happens in the list window, and only there. There is exactly one way to delete a note.
+- **After a restart**, up to five notes you were last working in come back. Notes with an empty body are skipped.
+- **When notes pile up**, `⋯ → All notes` gives you color stripes, previews, and search.
 
 ---
 
-## 일부러 넣지 않은 것
+## Left out on purpose
 
-무엇을 넣었는지보다 이쪽이 이 앱을 더 잘 설명합니다.
+This list describes the app better than the feature list does.
 
-| 없는 것 | 이유 |
+| Not here | Why |
 |---|---|
-| 알림 / 리마인더 | 익히다가 앱 자체를 안 쓰게 되는 기능의 전형입니다 |
-| 클라우드 동기화 | 1인 도구입니다. 서버가 필요해지는 순간 성격이 달라집니다 |
-| 태그 / 폴더 / 정렬 | 분류를 강요하면 스티키 노트가 아니게 됩니다 |
-| 다크 모드 / 테마 | 자유도를 없앤다는 원칙에 정면으로 어긋납니다 |
-| 이미지 붙여넣기 | 메모 크기가 들쭉날쭉해집니다 |
-| `##` 이하 소제목 | 메모에 문서 구조가 필요해지면 다른 도구를 쓸 때입니다 |
-| 내보내기 | 저장 파일이 이미 사람이 읽을 수 있는 형태로 폴더에 있습니다 |
-| 설정 화면 | 이 목록 전체가 설정 화면을 만들지 않기 위한 결정입니다 |
+| Reminders / notifications | The textbook example of a feature you learn and then quit over |
+| Cloud sync | This is a tool for one person. The moment it needs a server, it becomes a different thing |
+| Tags / folders / sorting | Forcing you to file things is what stops it being a sticky note |
+| Dark mode / themes | Directly against the principle of removing choices |
+| Pasting images | Note sizes start jumping around |
+| `##` and deeper headings | If a note needs document structure, it's time for a different tool |
+| Export | The saved files are already human-readable, sitting in a folder |
+| A settings screen | This entire list exists so that there doesn't have to be one |
 
 ---
 
-## 내 메모는 어디에 있나
+## Where your notes live
 
-`%APPDATA%\NoteforJun\notes\` 아래에 메모 하나당 JSON 파일 하나입니다.
+Under `%APPDATA%\NoteforJun\notes\` — one JSON file per note.
 
-서버에 올라가지 않습니다. 계정도, 로그인도 없습니다. 앱을 지워도 이 폴더는 남고, 메모장으로 열어도 내용이 읽힙니다.
+Nothing is uploaded. No account, no login. Uninstalling the app leaves the folder alone, and you can open any note in a text editor and read it.
 
 ---
 
-## 만든 것
+## Built with
 
 | | |
 |---|---|
-| 셸 | [Tauri v2](https://tauri.app) (Rust) — 윈도우에 이미 있는 웹뷰를 쓰므로 런타임을 같이 깔지 않습니다 |
-| 편집기 | [TipTap](https://tiptap.dev) / ProseMirror — 한글 조합 입력을 제대로 다루는 몇 안 되는 선택지 |
-| 빌드 | Vite |
-| 테스트 | Vitest (화면) + `cargo test` (창·저장) |
+| Shell | [Tauri v2](https://tauri.app) (Rust) — uses the WebView already on Windows, so no runtime ships with it |
+| Editor | [TipTap](https://tiptap.dev) / ProseMirror — one of the few that handles CJK composition input properly |
+| Build | Vite |
+| Tests | Vitest (UI) + `cargo test` (windows, storage) |
 
 ```bash
 npm install
-npm run tauri dev     # 개발 중 실행
-npm run tauri build   # 설치 파일 만들기
+npm run tauri dev     # run while developing
+npm run tauri build   # produce the installer
 
-npm test                                        # 화면 테스트
-cargo test --manifest-path src-tauri/Cargo.toml # 창·저장 테스트
+npm test                                        # UI tests
+cargo test --manifest-path src-tauri/Cargo.toml # window and storage tests
 ```
+
+### Language
+
+The app follows your OS language: Korean on a Korean system, English everywhere else. There is no language picker — people want to work in the language their computer is already set to, and asking again would be asking a question that's already been answered.
 
 ---
 
-## 설계 기록
+## Design notes
 
-이 앱은 결정마다 이유를 남기며 만들었습니다. 무엇을 만들었는지보다 **왜 그렇게 만들었고, 무엇을 만들지 않기로 했는지**가 적혀 있습니다.
+This app was built leaving the reasoning behind each decision in writing. They record **why it was built this way, and what was decided against** — which matters more here than what was built.
 
-- [설계 문서](docs/superpowers/specs/2026-09-11-noteforjun-design.md) — 문제 정의, 원칙, 화면 구성
-- [사용성 개선](docs/superpowers/specs/2026-09-13-noteforjun-usability-design.md) — v1을 쓰면서 나온 수정과 그 판단
+The documents are in Korean.
 
-코드 주석도 같은 규칙을 따릅니다. "무엇을 하는가"가 아니라 "왜 이렇게 했는가"를 적습니다.
+- [Design document](docs/superpowers/specs/2026-09-11-noteforjun-design.md) — the problem, the principles, the screens
+- [Usability pass](docs/superpowers/specs/2026-09-13-noteforjun-usability-design.md) — what changed after living with v1, and why
+
+Code comments follow the same rule: not *what* this does, but *why* it is this way.
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 Jun Oh
