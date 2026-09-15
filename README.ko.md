@@ -184,9 +184,21 @@ cargo test --manifest-path src-tauri/Cargo.toml # 창·저장 테스트
 ```bash
 export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.noteforjun/updater.key)"
 npm run tauri build
-npm run release:manifest     # .sig 에서 latest.json 을 만든다
-gh release create vX.Y.Z   src-tauri/target/release/bundle/nsis/*-setup.exe   src-tauri/target/release/bundle/latest.json
+npm run release:manifest
+
+cd src-tauri/target/release/bundle/nsis
+cp NoteforJun_*_x64-setup.exe NoteforJun-Setup.exe
+cd -
+
+gh release create vX.Y.Z \
+  src-tauri/target/release/bundle/nsis/NoteforJun_*_x64-setup.exe \
+  src-tauri/target/release/bundle/nsis/NoteforJun-Setup.exe \
+  src-tauri/target/release/bundle/latest.json
 ```
 
 `latest.json` 을 릴리스에 꼭 같이 올려야 한다. 앱은
 `releases/latest/download/latest.json` 을 보고, 이게 없으면 업데이트가 조용히 안 된다.
+
+`NoteforJun-Setup.exe` 는 버전을 뺀 이름의 같은 설치 파일이다. README 의 내려받기
+링크가 이것을 가리키므로 버전이 바뀌어도 링크가 안 깨진다. 빠뜨리면 릴리스 페이지를
+볼 줄 모르는 사람에게는 그 링크가 404 가 된다.

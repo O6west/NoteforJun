@@ -186,11 +186,21 @@ mode nobody notices.
 ```bash
 export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.noteforjun/updater.key)"
 npm run tauri build
-npm run release:manifest     # writes latest.json from the .sig
+npm run release:manifest
+
+cd src-tauri/target/release/bundle/nsis
+cp NoteforJun_*_x64-setup.exe NoteforJun-Setup.exe
+cd -
+
 gh release create vX.Y.Z \
-  src-tauri/target/release/bundle/nsis/*-setup.exe \
+  src-tauri/target/release/bundle/nsis/NoteforJun_*_x64-setup.exe \
+  src-tauri/target/release/bundle/nsis/NoteforJun-Setup.exe \
   src-tauri/target/release/bundle/latest.json
 ```
 
-`latest.json` must be attached to the release — the app checks
-`releases/latest/download/latest.json` and updates silently do nothing without it.
+`latest.json` must be attached to the release. The app checks
+`releases/latest/download/latest.json`; without it updates silently do nothing.
+
+`NoteforJun-Setup.exe` is the same installer without the version in its name.
+The README's download link points at it, so the link survives every release.
+Leave it out and that link 404s for everyone who can't navigate a releases page.
