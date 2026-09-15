@@ -32,11 +32,11 @@ describe('큰 글씨', () => {
 })
 
 describe('체크박스', () => {
-  it('"- "를 치면 체크박스가 된다', () => {
+  it('"- "는 체크박스가 되지 않고 하이픈으로 남는다', () => {
+    // 줄 앞에 - 를 찍는 것은 항목을 나열하는 흔한 손버릇이다.
     typeText(editor, '- 장보기')
-    const html = editor.getHTML()
-    expect(html).toContain('data-type="taskList"')
-    expect(html).toContain('장보기')
+    expect(editor.getHTML()).not.toContain('data-type="taskList"')
+    expect(editor.getText()).toBe('- 장보기')
   })
 
   it('"[] "를 쳐도 체크박스가 된다', () => {
