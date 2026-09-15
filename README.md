@@ -14,6 +14,28 @@
 
 Type `# ` and the line becomes a heading. Type `[ ] ` and it becomes a checkbox. Select text and the formatting buttons appear. Nothing to set up first.
 
+## Download
+
+**[⬇ Download for Windows](https://github.com/O6west/NoteforJun/releases/latest/download/NoteforJun-Setup.exe)** · 18 MB · Windows 10 or 11
+
+1. Click the link above. Your browser downloads `NoteforJun-Setup.exe`.
+2. Open it. **Windows will show a blue "Windows protected your PC" screen.**
+3. Click **More info**, then **Run anyway**.
+4. It installs and a note opens. That's it — nothing to sign up for.
+
+> **Why the warning?** The installer isn't code-signed. A signing certificate
+> costs money every year, and I'm a student who built this for himself. Windows
+> shows that screen for anything unsigned, whether it's harmful or not.
+>
+> You don't have to take my word for it — every line of this app is in this
+> repository, and you can build it yourself.
+>
+> If people actually end up using this, signing it and putting it on the
+> Microsoft Store is the first thing I'd do. Then the warning goes away.
+
+To uninstall, use Windows **Settings → Apps**. Your notes stay in
+`%APPDATA%\NoteforJun` either way.
+
 
 ## Why I made this
 
