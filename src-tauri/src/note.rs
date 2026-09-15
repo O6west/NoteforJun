@@ -9,11 +9,21 @@ pub struct WindowState {
     pub width: u32,
     pub height: u32,
     pub visible: bool,
+    /// 이 메모를 다른 창 위에 고정할지. 상단바 핀으로 끄고 켠다.
+    ///
+    /// 기존 메모 파일에는 이 필드가 없다. 없으면 true로 읽는다 — 지금까지
+    /// 늘 앞에 떠 있던 메모들이 앱을 새로 깔았다고 갑자기 뒤로 숨으면 안 된다.
+    #[serde(default = "pinned_default")]
+    pub pinned: bool,
+}
+
+fn pinned_default() -> bool {
+    true
 }
 
 impl Default for WindowState {
     fn default() -> Self {
-        Self { x: 48, y: 48, width: 460, height: 540, visible: true }
+        Self { x: 48, y: 48, width: 460, height: 540, visible: true, pinned: true }
     }
 }
 
@@ -81,5 +91,23 @@ mod tests {
         let w = WindowState::default();
         assert_eq!((w.width, w.height), (460, 540));
         assert!(w.visible);
+        assert!(w.pinned, "새 메모는 고정된 채로 시작한다");
+    }
+
+    #[test]
+    fn old_files_without_pinned_load_as_pinned() {
+        // 기존 메모 파일에는 pinned 필드가 없다. serde default가 없으면
+        // 여기서 통째로 역직렬화가 실패하고, 그 메모는 영영 안 열린다.
+        let raw = r#"{
+            "id": "x",
+            "title": "옛 메모",
+            "content": "<p>내용</p>",
+            "color": "yellow",
+            "window": { "x": 1, "y": 2, "width": 460, "height": 540, "visible": true },
+            "createdAt": "2026-09-01T00:00:00Z",
+            "updatedAt": "2026-09-01T00:00:00Z"
+        }"#;
+        let note: Note = serde_json::from_str(raw).expect("옛 형식을 읽을 수 있어야 한다");
+        assert!(note.window.pinned);
     }
 }
