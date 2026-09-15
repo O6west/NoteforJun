@@ -11,11 +11,18 @@
  * 브라우저 기본 툴팁(title 속성)을 쓰지 않는 이유는 줄바꿈이 안 되고,
  * 뜨기까지 1초 넘게 걸리며, 키보드 초점으로는 열리지 않아서다.
  */
+/**
+ * 왼쪽에 치는 것, 오른쪽에 그 결과.
+ *
+ * 결과를 설명하지 않고 그 모양 그대로 보여준다 — "굵게"를 굵게 써두면
+ * 무엇이 되는지 읽지 않아도 보인다. 설명을 읽게 만들면 외워야 할 목록이 되고,
+ * 보여주면 한번 쳐보게 된다.
+ */
 const LINES = [
-  ['[]', '→   ☐ 할 일'],
-  ['#', '→   제목'],
-  ['Ctrl+B  I  U', ''],
-  ['Ctrl+Alt+N', '새 메모'],
+  ['[]', [['☐ 할 일', '']]],
+  ['#', [['제목', 'as-h1']]],
+  ['Ctrl+B I U', [['굵게', 'as-bold'], ['기울임', 'as-italic'], ['밑줄', 'as-underline']]],
+  ['Ctrl+Alt+N', [['새 메모', '']]],
 ]
 
 export function createHelp({ button, container, menu = null }) {
@@ -24,14 +31,28 @@ export function createHelp({ button, container, menu = null }) {
   element.hidden = true
   element.setAttribute('role', 'tooltip')
 
-  // 두 칸짜리 격자로 쌓는다. 칸을 나눠두면 창이 최소 폭(260px)까지 좁아져도
-  // 설명만 줄바꿈되고 왼쪽 열은 그대로 줄이 맞는다.
-  for (const [key, what] of LINES) {
+  // 치는 것 / 화살표 / 결과 세 칸으로 쌓는다. 세 칸 다 내용만큼만 차지하므로
+  // 창을 키워도 팝업이 같이 늘어나지 않는다.
+  for (const [key, pieces] of LINES) {
     const k = document.createElement('kbd')
     k.textContent = key
-    const w = document.createElement('span')
-    w.textContent = what
-    element.append(k, w)
+
+    // 화살표는 낭독기에서 "오른쪽 화살표"로 읽혀 봐야 방해만 된다.
+    const arrow = document.createElement('span')
+    arrow.className = 'arrow'
+    arrow.textContent = '→'
+    arrow.setAttribute('aria-hidden', 'true')
+
+    const result = document.createElement('span')
+    result.className = 'result'
+    for (const [text, style] of pieces) {
+      const piece = document.createElement('span')
+      piece.textContent = text
+      if (style) piece.className = style
+      result.appendChild(piece)
+    }
+
+    element.append(k, arrow, result)
   }
   container.appendChild(element)
 

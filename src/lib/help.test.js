@@ -25,7 +25,17 @@ describe('도움말', () => {
 
   it('네 가지를 알려준다', () => {
     const keys = [...help.element.querySelectorAll('kbd')].map((k) => k.textContent)
-    expect(keys).toEqual(['[]', '#', 'Ctrl+B  I  U', 'Ctrl+Alt+N'])
+    expect(keys).toEqual(['[]', '#', 'Ctrl+B I U', 'Ctrl+Alt+N'])
+  })
+
+  it('결과를 설명하지 않고 그 모양으로 보여준다', () => {
+    // "굵게"를 굵게 써두면 무엇이 되는지 읽지 않아도 보인다.
+    // 이 표시가 빠지면 안내는 다시 외워야 할 목록이 된다.
+    const shape = (cls) => help.element.querySelector(`.${cls}`)?.textContent
+    expect(shape('as-h1')).toBe('제목')
+    expect(shape('as-bold')).toBe('굵게')
+    expect(shape('as-italic')).toBe('기울임')
+    expect(shape('as-underline')).toBe('밑줄')
   })
 
   it('실제로 되는 것만 적혀 있다', () => {
