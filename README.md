@@ -143,9 +143,10 @@ Code comments follow the same rule: not *what* this does, but *why* it is this w
 
 I built this for myself and it's free — no account, no ads, nothing to buy.
 
-If you end up actually keeping your notes in it, a coffee is welcome. There's a
-**Sponsor** button at the top of this page. Not sponsoring changes nothing: the
-app has no paid tier and never will.
+If you end up actually keeping your notes in it, a coffee is welcome —
+[buymeacoffee.com/noteforjun](https://buymeacoffee.com/noteforjun), or the
+**Sponsor** button at the top of this page if you'd rather stay on GitHub.
+Not paying anything changes nothing: the app has no paid tier and never will.
 
 Bug reports and "this annoyed me" notes are worth more than coffee, honestly.
 [Open an issue](https://github.com/O6west/NoteforJun/issues).
