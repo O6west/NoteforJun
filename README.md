@@ -16,7 +16,7 @@
 
 ## Why I made this
 
-I'm an ordinary university student.
+I'm an ordinary university student. (from 🇰🇷)
 
 I've installed task managers more times than I can count, and I always stalled at the same spot. Before writing anything down I had to decide **which project it belonged to, when it was due, what to tag it**. A decision wedges itself between having the thought and writing it down. Do that enough times and you stop writing things down at all.
 
