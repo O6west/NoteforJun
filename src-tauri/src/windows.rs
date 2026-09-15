@@ -146,7 +146,10 @@ pub fn open_note(app: &AppHandle, note: &Note) -> tauri::Result<()> {
     WebviewWindowBuilder::new(app, &label, url)
         .title("NoteforJun")
         .inner_size(note.window.width as f64, note.window.height as f64)
-        .min_inner_size(220.0, 160.0)
+        // 최소 폭 260px은 상단바에서 나온 수다. 핀·+·?·⋯·× 다섯 버튼과
+        // 저장 표시가 190px을 고정으로 쓰므로, 이보다 좁아지면 제목칸이
+        // 남지 않는다. 세로는 본문 몇 줄이 보이면 충분하다.
+        .min_inner_size(260.0, 160.0)
         .position(note.window.x as f64, note.window.y as f64)
         .decorations(false)
         .resizable(true)
