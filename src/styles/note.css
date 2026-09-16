@@ -76,7 +76,7 @@
      제목 글자의 윗머리에 닿아 밑줄을 그은 것처럼 보인다 — 창이 좁아
      제목칸이 줄어들면 반드시 그렇게 된다. 잡히는 영역은 20px 그대로다. */
   align-items: flex-start;
-  padding-top: 3px;
+  padding-top: 5px;
   justify-content: center;
   cursor: grab;
 }
