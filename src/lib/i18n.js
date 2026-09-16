@@ -42,6 +42,7 @@ const ko = {
   // ? 도움말
   helpTask: '☐ 할 일',
   helpHeading: '제목',
+  helpArrow: '→',
   helpNewNote: '새 메모',
 
   // 저장·불러오기 실패
@@ -99,6 +100,7 @@ const en = {
   // ? 도움말
   helpTask: '☐ To-do',
   helpHeading: 'Heading',
+  helpArrow: '→',
   helpNewNote: 'New note',
 
   // 저장·불러오기 실패

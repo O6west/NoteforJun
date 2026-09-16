@@ -96,6 +96,7 @@ When you want more, hover the `?` on the title bar.
 |---|---|
 | `[ ]` + space | ☐ a to-do |
 | `#` + space | a heading |
+| `->` | → |
 | `Ctrl+B` `I` `U` | bold / italic / underline |
 | select text | formatting popup, highlighter included |
 | `Ctrl+Alt+N` | a new note, from anywhere |

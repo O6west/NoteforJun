@@ -27,6 +27,7 @@ import { t } from './i18n.js'
 const LINES = [
   ['[ ]', t.helpTask, ''],
   ['#', t.helpHeading, 'as-h1'],
+  ['->', t.helpArrow, ''],
   ['Ctrl+Alt+N', t.helpNewNote, ''],
 ]
 

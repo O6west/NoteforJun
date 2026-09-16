@@ -27,7 +27,7 @@ describe('도움말', () => {
 
   it('세 가지를 알려준다', () => {
     const keys = [...help.element.querySelectorAll('kbd')].map((k) => k.textContent)
-    expect(keys).toEqual(['[ ]', '#', 'Ctrl+Alt+N'])
+    expect(keys).toEqual(['[ ]', '#', '->', 'Ctrl+Alt+N'])
   })
 
   it('안내에 적힌 대로 쳐도 체크박스가 된다', () => {
