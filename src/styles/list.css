@@ -130,3 +130,67 @@
   opacity: 1;
   background: rgba(0, 0, 0, 0.08);
 }
+
+/*
+ * 삭제를 한 번 더 묻는 창. 브라우저 confirm() 대신 직접 그리는 이유는
+ * lib/confirm.js에 적어두었다.
+ *
+ * 목록 창 위에 겹쳐 뜨므로 창 밖으로 잘릴 일이 없고, 종이색·글꼴·모서리가
+ * 앱과 같아서 앱이 묻는 것처럼 보인다.
+ */
+.ask-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.3);
+  /* #shell과 같은 모서리. 안 맞추면 창 네 귀퉁이만 각지게 튀어나온다. */
+  border-radius: var(--nfj-radius);
+}
+
+.ask {
+  width: 100%;
+  max-width: 300px;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--nfj-paper);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+}
+
+.ask-message {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  /* 사전 문구의 줄바꿈을 살린다. 둘째 줄이 "되돌릴 수 없습니다" 경고다. */
+  white-space: pre-line;
+  /* 띄어쓰기 없이 20자를 채운 제목이 창을 옆으로 밀어내지 않게 한다 */
+  overflow-wrap: anywhere;
+}
+
+.ask-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+
+.ask-btn {
+  min-width: 66px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--nfj-ink);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ask-btn:hover { background: rgba(0, 0, 0, 0.05); }
+.ask-btn:focus-visible { outline: 2px solid rgba(0, 0, 0, 0.4); outline-offset: 1px; }
+
+/* 지우는 쪽만 색으로 구별한다. 둘이 똑같이 생기면 급할 때 잘못 누른다. */
+.ask-btn.danger {
+  border-color: transparent;
+  background: #b5503c;
+  color: #ffffff;
+}
+.ask-btn.danger:hover { background: #a1442f; }

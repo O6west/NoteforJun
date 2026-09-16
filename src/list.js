@@ -7,6 +7,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 
 import { createNote, deleteNote, listNotes, openNoteWindow } from './lib/api.js'
 import { colorOf } from './lib/colors.js'
+import { askToDelete } from './lib/confirm.js'
 import { t } from './lib/i18n.js'
 import { firstLine, previewText } from './lib/preview.js'
 import { installResizeZones } from './lib/resize.js'
@@ -83,7 +84,7 @@ function render() {
     card.append(stripe, body, remove)
 
     async function confirmDelete() {
-      if (!confirm(t.deleteConfirm(label))) return
+      if (!(await askToDelete(label))) return
       try {
         await deleteNote(n.id)
       } catch (err) {
