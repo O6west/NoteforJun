@@ -117,7 +117,10 @@
 #editor {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: 11px 12px 20px;
+  /* 아래를 넉넉히 두는 이유: 글이 창을 채우면 마지막 줄이 창 밑면에 닿아
+     읽기도 답답하고, 그 줄에 커서를 두고 칠 때 특히 갑갑하다. 위쪽은
+     상단바가 이미 경계를 만들어 주므로 아래만큼 둘 필요가 없다. */
+  padding: 11px 12px 32px;
   font-size: var(--nfj-body-size);
   line-height: var(--nfj-body-line);
 }

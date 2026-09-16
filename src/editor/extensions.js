@@ -1,4 +1,4 @@
-import { wrappingInputRule } from '@tiptap/core'
+import { Extension, textInputRule, wrappingInputRule } from '@tiptap/core'
 import Bold from '@tiptap/extension-bold'
 import Document from '@tiptap/extension-document'
 import Heading from '@tiptap/extension-heading'
@@ -13,7 +13,7 @@ import Text from '@tiptap/extension-text'
 import Underline from '@tiptap/extension-underline'
 
 import { t } from '../lib/i18n.js'
-import { TASK_INPUT_RULE } from './rules.js'
+import { ARROW_INPUT_RULE, TASK_INPUT_RULE } from './rules.js'
 
 /**
  * 기본 입력 규칙(`[ ] `, `[x] `)을 우리 규칙(`- `, `[] `)으로 갈아끼운다.
@@ -22,6 +22,14 @@ import { TASK_INPUT_RULE } from './rules.js'
 const TaskListWithOurRules = TaskList.extend({
   addInputRules() {
     return [wrappingInputRule({ find: TASK_INPUT_RULE, type: this.type })]
+  },
+})
+
+/** `->` 를 `→` 로 바꾼다. 왜 이것만 넣었는지는 rules.js에 적어 두었다. */
+const Arrow = Extension.create({
+  name: 'arrow',
+  addInputRules() {
+    return [textInputRule({ find: ARROW_INPUT_RULE, replace: '→' })]
   },
 })
 
@@ -62,6 +70,7 @@ export function buildExtensions() {
     Heading.configure({ levels: [1] }),
     TaskListWithOurRules,
     TaskItemThatEndsOnEnter.configure({ nested: false }),
+    Arrow,
     Bold,
     Italic,
     Underline,

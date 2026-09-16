@@ -131,3 +131,21 @@ describe('저장 신호', () => {
     el.remove()
   })
 })
+
+describe('화살표', () => {
+  it('"->"를 치면 화살표가 된다', () => {
+    typeText(editor, '서울->부산')
+    expect(editor.getText()).toBe('서울→부산')
+  })
+
+  it('하이픈 하나는 하이픈으로 남는다', () => {
+    typeText(editor, '2026-09-16')
+    expect(editor.getText()).toBe('2026-09-16')
+  })
+
+  it('체크박스 안에서도 된다', () => {
+    typeText(editor, '[] 집->회사')
+    expect(editor.getHTML()).toContain('data-type="taskList"')
+    expect(editor.getText()).toContain('집→회사')
+  })
+})
