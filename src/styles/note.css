@@ -215,6 +215,20 @@
 .menu-item[hidden] { display: none; }
 
 /*
+ * 되돌릴 수 없는 항목만 빨갛게. 이 메뉴에서 유일하게 지우는 동작이라,
+ * 다른 항목과 같은 검정이면 색 고르러 왔다가 손이 미끄러진다.
+ * 위에 선을 하나 그어 색·목록·자동실행 묶음과 떼어 놓는다.
+ */
+.menu-item.danger {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 0 0 4px 4px;
+  color: #b5503c;
+}
+.menu-item.danger:hover { background: rgba(181, 80, 60, 0.1); }
+
+/*
  * 업데이트가 있다는 표시. ⋯ 버튼 귀퉁이에 점 하나만 찍는다.
  * 팝업으로 물어보지 않는 이유는, 이 앱이 알림과 물음을 없앤 앱이기 때문이다.
  * 점은 보고 싶을 때 보이고, 무시해도 아무 일도 일어나지 않는다.

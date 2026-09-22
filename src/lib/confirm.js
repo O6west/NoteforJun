@@ -1,3 +1,4 @@
+import '../styles/ask.css'
 import { t } from './i18n.js'
 
 /**

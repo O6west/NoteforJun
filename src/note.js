@@ -10,6 +10,7 @@ import { createEditor } from './editor/editor.js'
 import {
   autostartEnabled,
   createNote,
+  deleteNote,
   hideNoteWindow,
   loadNote,
   openListWindow,
@@ -17,6 +18,7 @@ import {
   setAutostart,
 } from './lib/api.js'
 import { COLORS, DEFAULT_COLOR, colorOf } from './lib/colors.js'
+import { askToDelete } from './lib/confirm.js'
 import { debounce } from './lib/debounce.js'
 import { createHelp } from './lib/help.js'
 import { t } from './lib/i18n.js'
@@ -53,6 +55,7 @@ function applyText() {
   document.getElementById('close').title = t.close
   document.getElementById('open-list').textContent = t.openList
   document.getElementById('autostart').textContent = t.autostart
+  document.getElementById('delete-note').textContent = t.deleteThisNote
 }
 applyText()
 
@@ -239,6 +242,25 @@ async function boot() {
   document.getElementById('open-list').addEventListener('click', () => {
     menu.hidden = true
     openListWindow().catch((err) => showSaveError(err))
+  })
+
+  // 이 메모를 영구 삭제한다.
+  //
+  // 원래는 목록 창에서만 지울 수 있게 했다 — 글을 쓰다 손이 미끄러져 메모를
+  // 날리는 일이 없게 하려는 것이었다. 다만 보고 있는 메모를 지우려고 목록까지
+  // 가는 것이 번거로워, 메뉴 안쪽에 빨갛게 넣어 되찾는다. 메뉴를 열고,
+  // 빨간 항목을 고르고, 확인창에서 한 번 더 눌러야 하므로 실수로 닿기는 어렵다.
+  //
+  // 창을 따로 닫지 않는다. delete_note가 파일을 지우기 전에 창부터 닫는다.
+  document.getElementById('delete-note').addEventListener('click', async () => {
+    menu.hidden = true
+    const label = note.title.trim() || t.untitledNote
+    if (!(await askToDelete(label, shell))) return
+    // 지우기로 했으면 대기 중인 저장은 버린다. 지운 뒤에 저장이 도착하면
+    // 방금 지운 메모가 파일로 되살아난다.
+    saver.cancel()
+    remember?.cancel()
+    deleteNote(id).catch((err) => showSaveError(err))
   })
   // 윈도우 켤 때 자동 실행. 앱 안에 따로 기억하지 않고 메뉴를 열 때마다
   // 실제 등록 상태를 읽는다 — 사용자가 윈도우 설정에서 직접 껐을 수 있고,
