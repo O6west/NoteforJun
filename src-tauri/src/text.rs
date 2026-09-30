@@ -31,6 +31,11 @@ pub fn list_window_title() -> &'static str {
     list_window_title_in(is_korean())
 }
 
+/// 작업표시줄 아이콘을 오른쪽 클릭하면 뜨는 항목의 이름.
+pub fn new_note_task() -> &'static str {
+    new_note_task_in(is_korean())
+}
+
 /// 처음 켰을 때 내미는 안내 메모의 제목.
 pub fn welcome_title() -> &'static str {
     welcome_title_in(is_korean())
@@ -61,6 +66,14 @@ fn list_window_title_in(korean: bool) -> &'static str {
         "모든 메모"
     } else {
         "All notes"
+    }
+}
+
+fn new_note_task_in(korean: bool) -> &'static str {
+    if korean {
+        "새 메모"
+    } else {
+        "New note"
     }
 }
 
@@ -127,6 +140,7 @@ mod tests {
         assert!(!has_hangul(welcome_body_in(false)), "안내 메모 본문");
         assert!(!has_hangul(welcome_title_in(false)), "안내 메모 제목");
         assert!(!has_hangul(list_window_title_in(false)), "목록 창 제목");
+        assert!(!has_hangul(new_note_task_in(false)), "작업표시줄 메뉴");
     }
 
     #[test]
@@ -134,6 +148,7 @@ mod tests {
         assert!(has_hangul(welcome_body_in(true)));
         assert!(has_hangul(welcome_title_in(true)));
         assert!(has_hangul(list_window_title_in(true)));
+        assert!(has_hangul(new_note_task_in(true)));
     }
 
     /// 화면 문구는 lang_code로 고르고 안내 메모는 Rust가 고른다.

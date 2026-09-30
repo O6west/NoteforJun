@@ -24,7 +24,7 @@ import { createHelp } from './lib/help.js'
 import { t } from './lib/i18n.js'
 import { installResizeZones } from './lib/resize.js'
 import { serialize } from './lib/serialize.js'
-import { clampTitle } from './lib/title.js'
+import { clampTitle, windowTitle } from './lib/title.js'
 import { watchForUpdate } from './lib/update.js'
 
 const SAVE_DELAY = 500
@@ -32,6 +32,7 @@ const SAVE_DELAY = 500
 installResizeZones()
 
 const id = new URLSearchParams(location.search).get('id')
+const win = getCurrentWindow()
 const shell = document.getElementById('shell')
 const titleInput = document.getElementById('title')
 const menu = document.getElementById('menu')
@@ -138,7 +139,23 @@ const saveInOrder = serialize((n) => saveNote(n))
 function persist(quiet = false) {
   if (!note) return Promise.resolve()
   if (editor) note.content = editor.getHTML()
+  renameWindow()
   return saveInOrder(note).then(() => flashSaved(quiet), showSaveError)
+}
+
+/**
+ * 작업표시줄에 뜨는 창 이름을 지금 내용에 맞춘다.
+ *
+ * 저장할 때마다 부른다. 한 글자마다 부르지 않는 것은 이 이름이 작업표시줄에
+ * 마우스를 올렸을 때에나 보이기 때문이다 — 반 초 늦어도 알아차릴 사람이 없다.
+ *
+ * 실패해도 삼킨다. 창 이름이 낡은 것은 불편한 일이고, 여기서 예외를 올리면
+ * 저장이 멈춘다. 그건 글이 사라지는 일이다.
+ */
+function renameWindow() {
+  win.setTitle(windowTitle(note.title, editor ? editor.getText() : '')).catch((err) => {
+    console.error('창 이름을 바꾸지 못했습니다', err)
+  })
 }
 
 /** 아이콘을 만져서 바뀐 것은 조용히, 그리고 바로 저장한다. 미룰 이유가 없다. */
@@ -233,6 +250,10 @@ async function boot() {
     content: note.content,
     onUpdate: () => saver.call(),
   })
+
+  // 창을 되살렸을 때는 아무도 고치지 않아 저장이 돌지 않는다. 여기서 한 번
+  // 불러주지 않으면 그런 메모는 작업표시줄에 계속 'NoteforJun'으로 남는다.
+  renameWindow()
   createBubble({ editor, container: shell })
   createHelp({ button: document.getElementById('help-btn'), container: shell, menu })
 
@@ -296,8 +317,6 @@ async function boot() {
     button: document.getElementById('menu-btn'),
     item: document.getElementById('update'),
   })
-
-  const win = getCurrentWindow()
 
   showPinned(note.window.pinned)
   pinBtn.addEventListener('click', async () => {

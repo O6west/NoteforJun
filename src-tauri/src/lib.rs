@@ -1,5 +1,7 @@
 pub mod commands;
 pub mod html;
+#[cfg(windows)]
+pub mod jumplist;
 pub mod note;
 pub mod storage;
 pub mod text;
@@ -56,6 +58,17 @@ pub fn run() {
             init_autostart(app.handle(), &base);
 
             windows::restore_all(app.handle(), &notes)?;
+
+            // 앱이 꺼져 있을 때 작업표시줄 메뉴의 '새 메모'를 누른 경우다.
+            // 책상은 책상대로 되돌려 놓고, 그 위에 빈 종이를 한 장 더 얹는다.
+            #[cfg(windows)]
+            if std::env::args().any(|a| a == jumplist::NEW_NOTE_ARG) {
+                windows::open_blank(app.handle(), &notes)?;
+            }
+
+            #[cfg(windows)]
+            jumplist::install(crate::text::new_note_task());
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

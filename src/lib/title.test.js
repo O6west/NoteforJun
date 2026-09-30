@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { TITLE_MAX, clampTitle } from './title.js'
+import { APP_NAME, TITLE_MAX, clampTitle, windowTitle } from './title.js'
 
 describe('clampTitle', () => {
   it('최대 길이는 20자다', () => {
@@ -39,5 +39,32 @@ describe('clampTitle', () => {
     const jamo = '한'
     expect(jamo).toHaveLength(3)
     expect(clampTitle(jamo.repeat(10))).toHaveLength(20)
+  })
+})
+
+describe('windowTitle', () => {
+  it('제목이 있으면 제목을 쓴다', () => {
+    expect(windowTitle('진로 탐색(09/17)', '진로에 대한 고민을 많이 했다.')).toBe('진로 탐색(09/17)')
+  })
+
+  it('제목이 없으면 본문 첫 줄을 쓴다', () => {
+    expect(windowTitle('', '오늘 살 것\n우유\n달걀')).toBe('오늘 살 것')
+  })
+
+  it('공백뿐인 제목은 없는 것으로 본다', () => {
+    expect(windowTitle('   ', '본문 첫 줄')).toBe('본문 첫 줄')
+  })
+
+  it('본문 첫 줄도 20자에서 자른다', () => {
+    expect(windowTitle('', '가'.repeat(30))).toHaveLength(TITLE_MAX)
+  })
+
+  it('제목도 본문도 없으면 앱 이름으로 돌아간다', () => {
+    expect(windowTitle('', '')).toBe(APP_NAME)
+    expect(windowTitle(null, null)).toBe(APP_NAME)
+  })
+
+  it('본문 앞의 빈 줄은 건너뛴다', () => {
+    expect(windowTitle('', '\n\n  첫 글자\n둘째 줄')).toBe('첫 글자')
   })
 })
